@@ -11,7 +11,7 @@ ___
 
 ___
 
-<img src='https://databricks.com/wp-content/uploads/2021/05/market-risk-Diagram.png' width=800>
+<img src='https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/var/images/reference_architecture.png' width=800>
 
 ___
 

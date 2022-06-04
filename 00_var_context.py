@@ -13,11 +13,12 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/configure_notebook
+# MAGIC %md
+# MAGIC <img src='https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/var/images/reference_architecture.png' width=800>
 
 # COMMAND ----------
 
-tear_down()
+# MAGIC %run ./config/configure_notebook
 
 # COMMAND ----------
 
@@ -90,4 +91,10 @@ plot_var(simulations, 95)
 
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC &copy; 2022 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License [https://databricks.com/db-license-source].  All included or referenced third party libraries are subject to the licenses set forth below.
+# MAGIC 
+# MAGIC | library                                | description             | license    | source                                              |
+# MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+# MAGIC | Yfinance                               | Yahoo finance           | Apache2    | https://github.com/ranaroussi/yfinance              |
+# MAGIC | tempo                                  | Timeseries library      | Databricks | https://github.com/databrickslabs/tempo             |
