@@ -1,0 +1,205 @@
+[
+  {
+    "country":"CHILE",
+    "company":"Banco de Chile",
+    "ticker":"BCH",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"Banco Santander-Chile",
+    "ticker":"BSAC",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"Compa\u00f1\u00eda Cervecer\u00edas Unidas S.A.",
+    "ticker":"CCU",
+    "industry":"Beverages",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"Ita\u00fa CorpBanca",
+    "ticker":"ITCB",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"Enersis, S.A.",
+    "ticker":"ENIA",
+    "industry":"Electricity",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"Enersis Chile SA Sponsored ADR",
+    "ticker":"ENIC",
+    "industry":"Electricity",
+    "weight":0.0344827586
+  },
+  {
+    "country":"CHILE",
+    "company":"SQM-Sociedad Qu\u00edmica y Minera de Chile, S.A.",
+    "ticker":"SQM",
+    "industry":"Chemicals",
+    "weight":0.0344827586
+  },
+  {
+    "country":"COLOMBIA",
+    "company":"BanColombia S.A.",
+    "ticker":"CIB",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"COLOMBIA",
+    "company":"Ecopetrol S.A.",
+    "ticker":"EC",
+    "industry":"Oil & Gas Producers",
+    "weight":0.0344827586
+  },
+  {
+    "country":"COLOMBIA",
+    "company":"Grupo Aval Acciones y Valores S.A",
+    "ticker":"AVAL",
+    "industry":"Financial Services",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Am\u00e9rica M\u00f3vil, S.A.B. de C.V.",
+    "ticker":"AMX",
+    "industry":"Mobile Telecommunications",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Am\u00e9rica M\u00f3vil SAB de CV Sponsored ADR Class A",
+    "ticker":"AMOV",
+    "industry":"Mobile Telecommunications",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"CEMEX S.A.B. de C.V. (CEMEX)",
+    "ticker":"CX",
+    "industry":"Construction & Materials",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Coca-Cola FEMSA, S.A.B. de C.V.",
+    "ticker":"KOF",
+    "industry":"Beverages",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Controladora Vuela Compa\u00f1\u00eda de Aviaci\u00f3n, S.A.B. de C.V",
+    "ticker":"VLRS",
+    "industry":"Travel & Leisure",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Fomento Econ\u00f3mico Mexicano, S.A.B. de C.V. (FEMSA)",
+    "ticker":"FMX",
+    "industry":"Beverages",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Grupo Aeroportuario del Pac\u00edfico, S.A.B. de C.V. (GAP)",
+    "ticker":"PAC",
+    "industry":"Industrial Transportation",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Grupo Aeroportuario del Sureste, S.A. de C.V. (ASUR)",
+    "ticker":"ASR",
+    "industry":"Industrial Transportation",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Grupo Financiero Santander M\u00e9xico, S.A.B. de C.V",
+    "ticker":"BSMX",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Grupo Simec, S.A. De CV. (ADS)",
+    "ticker":"SIM",
+    "industry":"Industrial Metals & Mining",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Grupo Televisa, S.A.",
+    "ticker":"TV",
+    "industry":"Media",
+    "weight":0.0344827586
+  },
+  {
+    "country":"MEXICO",
+    "company":"Industrias Bachoco, S.A.B. de C.V. (Bachoco)",
+    "ticker":"IBA",
+    "industry":"Food Producers",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PANAMA",
+    "company":"Banco Latinoamericano de Comercio Exterior, S.A.",
+    "ticker":"BLX",
+    "industry":"Banks",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PANAMA",
+    "company":"Copa Holdings, S.A.",
+    "ticker":"CPA",
+    "industry":"Travel & Leisure",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PERU",
+    "company":"Cementos Pacasmayo S.A.A.",
+    "ticker":"CPAC",
+    "industry":"Construction & Materials",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PERU",
+    "company":"Southern Copper Corporation",
+    "ticker":"SCCO",
+    "industry":"Industrial Metals & Mining",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PERU",
+    "company":"Fortuna Silver Mines Inc.",
+    "ticker":"FSM",
+    "industry":"Mining",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PERU",
+    "company":"Compa\u00f1\u00eda de Minas Buenaventura S.A.",
+    "ticker":"BVN",
+    "industry":"Mining",
+    "weight":0.0344827586
+  },
+  {
+    "country":"PERU",
+    "company":"Credicorp Ltd.",
+    "ticker":"BAP",
+    "industry":"Banks",
+    "weight":0.0344827586
+  }
+]
