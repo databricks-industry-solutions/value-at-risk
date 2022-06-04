@@ -40,9 +40,5 @@ with open('config/indicators.json', 'r') as f:
 # COMMAND ----------
 
 import mlflow
+dbutils.fs.mkdirs(config['model']['path'])
 mlflow.set_experiment(config['model']['path'])
-
-# COMMAND ----------
-
-import tempfile
-tempfile.TemporaryDirectory()
