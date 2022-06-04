@@ -5,11 +5,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/var_config
-
-# COMMAND ----------
-
-# MAGIC %run ./utils/var_utils
+# MAGIC %run ./config/configure_notebook
 
 # COMMAND ----------
 
@@ -42,6 +38,7 @@ point_in_time_vector = (
 
 # COMMAND ----------
 
+from utils.var_utils import plot_var
 plot_var(point_in_time_vector, 99)
 
 # COMMAND ----------
@@ -51,6 +48,8 @@ plot_var(point_in_time_vector, 99)
 # MAGIC The same can be achieved at scale, over our entire trading history. For each date, we aggregate all trial vectors and extract the worst 1% of events 
 
 # COMMAND ----------
+
+from utils.var_utils import var
 
 risk_exposure = (
   simulation_df

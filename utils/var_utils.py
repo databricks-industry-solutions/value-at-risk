@@ -1,4 +1,3 @@
-# Databricks notebook source
 def plot_var(simulations, var):
   
   import pandas as pd
@@ -37,8 +36,7 @@ def plot_var(simulations, var):
       x.set_title("VAR{} = {:.3f}".format(var, q1), weight='bold', size=15)
       x.set_xlabel("Returns", labelpad=20, weight='bold', size=12)
       x.set_ylabel("Density", labelpad=20, weight='bold', size=12)
-
-# COMMAND ----------
+      
 
 from pyspark.sql.functions import udf
 

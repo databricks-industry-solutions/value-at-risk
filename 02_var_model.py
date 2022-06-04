@@ -5,7 +5,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/var_config
+# MAGIC %run ./config/configure_notebook
 
 # COMMAND ----------
 

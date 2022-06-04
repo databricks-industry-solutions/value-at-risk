@@ -14,11 +14,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/var_config
-
-# COMMAND ----------
-
-# MAGIC %run ./utils/var_utils
+# MAGIC %run ./config/configure_notebook
 
 # COMMAND ----------
 
@@ -59,6 +55,7 @@ display(inv_returns_df)
 # COMMAND ----------
 
 from pyspark.ml.stat import Summarizer
+from utils.var_utils import var
 
 risk_exposure = (
   spark.read.table(config['trials_table'])

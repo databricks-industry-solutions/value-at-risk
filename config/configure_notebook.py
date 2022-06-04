@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %pip install yfinance==0.1.70 dbl-tempo==0.1.17
+# MAGIC %pip install -r requirements.txt
 
 # COMMAND ----------
 
