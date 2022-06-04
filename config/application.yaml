@@ -9,6 +9,8 @@ model:
   name: 'value_at_risk'
   # date when we train our model (before yfinance end date)
   date: '2019-09-01'
+  # where model experiments will be stored
+  path: '/FileStore/solution_accelerators/var/experiments'
     
 database:
   # all delta tables will be stored as external managed tables under that database / within that directory

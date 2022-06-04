@@ -39,9 +39,8 @@ with open('config/indicators.json', 'r') as f:
 
 # COMMAND ----------
 
-# FEATURE_DISABLED: Creation of experiments in jobs is not enabled. If using the Python fluent API, you can set an active experiment
 import mlflow
-mlflow.set_experiment(config['model']['name'])
+mlflow.set_experiment(config['model']['path'])
 
 # COMMAND ----------
 
