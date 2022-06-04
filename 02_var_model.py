@@ -14,6 +14,11 @@ model_date = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC We create a temp directory where we may store some additional artifacts for our model
+
+# COMMAND ----------
+
 import tempfile
 tempDir = tempfile.TemporaryDirectory()
 
@@ -39,14 +44,10 @@ display(market_pd)
 
 # COMMAND ----------
 
-import numpy as np
 from pyspark.sql import Window
 from pyspark.sql.functions import udf
 from pyspark.sql import functions as F
-
-@udf("double")
-def compute_return(first, close):
-  return float(np.log(close / first))
+from utils.var_udf import compute_return
 
 def get_stock_returns():
 
@@ -120,34 +121,23 @@ display(features_df)
 
 # COMMAND ----------
 
-# add non linear transformations as simple example on non linear returns
-def non_linear_features(xs):
-  import numpy as np
-  fs = []
-  for x in xs:
-    fs.append(x)
-    fs.append(np.sign(x) * x**2)
-    fs.append(x**3)
-    fs.append(np.sign(x) * np.sqrt(abs(x)))
-  return fs
-
-# COMMAND ----------
-
 import statsmodels.api as sm
 from pyspark.sql.types import *
 from pyspark.sql.functions import pandas_udf, PandasUDFType
+from utils.var_utils import non_linear_features
 
 # use pandas UDF to train multiple model (one for each instrument) in parallel
 # the resulting dataframe will be the linear regression weights for each instrument
-schema = StructType([
+train_model_schema = StructType([
   StructField('ticker', StringType(), True), 
   StructField('weights', ArrayType(FloatType()), True)
 ])
 
 # a model would also be much more complex than the below
-@pandas_udf(schema, PandasUDFType.GROUPED_MAP)
+@pandas_udf(train_model_schema, PandasUDFType.GROUPED_MAP)
 def train_model(group, pdf):
   import pandas as pd
+  import numpy as np
   # build market factor vectors
   # add a constant - the intercept term for each instrument i.
   X = [non_linear_features(row) for row in np.array(pdf['features'])]
@@ -176,28 +166,17 @@ from mlflow.pyfunc import PythonModel
 
 class RiskMLFlowModel(PythonModel):
   
-  import numpy as np
-  import pandas as pd
-
   def __init__(self, model_df):
     self.weights = dict(zip(model_df.ticker, model_df.weights))
-    
-  def _non_linear_features(self, xs):
-    fs = []
-    for x in xs:
-      fs.append(x)
-      fs.append(np.sign(x) * x**2)
-      fs.append(x**3)
-      fs.append(np.sign(x) * np.sqrt(abs(x)))
-    return fs
-  
+
   def _predict_record(self, ticker, xs):
+    # Our logic is really simplistic and use simple non linear features with a linear regression
+    # still, models could be packaged as pyfunc regardless of sklearn, complex DL or plain stats objects
+    from utils.var_utils import non_linear_features
+    from utils.var_utils import predict_non_linears
     ps = self.weights[ticker]
-    fs = self._non_linear_features(xs)
-    s = ps[0]
-    for i, f in enumerate(fs):
-      s = s + ps[i + 1] * f
-    return float(s)
+    fs = non_linear_features(xs)
+    return predict_non_linears(ps, fs)
   
   def predict(self, context, model_input):
     predicted = model_input[['ticker','features']].apply(lambda x: self._predict_record(*x), axis=1)
@@ -243,14 +222,9 @@ display(prediction_df)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import udf
-
-@udf("float")
-def wsse_udf(p, a):
-  return float((p - a)**2)
-
 # compare expected vs. actual return
 # sum mean square error per instrument
+from utils.var_udf import wsse_udf
 wsse_df = prediction_df \
   .withColumn('wsse', wsse_udf(F.col('predicted'), F.col('return'))) \
   .groupBy('ticker') \
@@ -342,6 +316,8 @@ model_udf = mlflow.pyfunc.spark_udf(
 
 # COMMAND ----------
 
+import numpy as np
+
 plt.figure(figsize=(25,12))
 
 prediction_df = features_df.withColumn('predicted', model_udf(F.struct("ticker", "features")))
@@ -358,3 +334,7 @@ plt.title('Log return of EC')
 plt.ylabel('log return')
 plt.xlabel('date')
 plt.show()
+
+# COMMAND ----------
+
+tempDir.cleanup()

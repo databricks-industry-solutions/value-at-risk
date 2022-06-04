@@ -51,36 +51,17 @@ display(volatility_df)
 
 # COMMAND ----------
 
-# create a dataframe of seeds so that each trial will result in a different simulation
-# each executor is responsible for num_instruments * ( total_runs / num_executors ) trials
-import pandas as pd
-import numpy as np
-
-def create_seed_df():
-  runs = config['monte-carlo']['runs']
-  seed_df = pd.DataFrame(list(np.arange(0, runs)), columns = ['trial_id'])
-  return spark.createDataFrame(seed_df)
+from utils.var_utils import create_seed_df
+seed_df = create_seed_df(config['monte-carlo']['runs'])
+display(seed_df)
 
 # COMMAND ----------
 
-# provided covariance matrix and average of market indicators, we sample from a multivariate distribution
-# we allow a seed to be passed for reproducibility
-# whilst many data scientists may add a seed as np.random.seed(seed), we have to appreciate the distributed nature 
-# of our process and the undesired side effects settings seeds globally
-# instead, use rng = np.random.default_rng(seed)
-from pyspark.sql.functions import udf
-
-@udf('array<float>')
-def simulate_market(vol_avg, vol_cov, seed):
-  import numpy as np
-  rng = np.random.default_rng(seed)
-  return rng.multivariate_normal(vol_avg, vol_cov).tolist()
-
-# COMMAND ----------
+from utils.var_udf import simulate_market
 
 market_conditions = (
   volatility_df
-    .join(create_seed_df())
+    .join(spark.createDataFrame(seed_df))
     .withColumn('features', simulate_market('vol_avg', 'vol_cov', 'trial_id'))
     .select('date', 'features', 'trial_id')
 )
@@ -142,7 +123,8 @@ from pyspark.ml.linalg import Vectors, VectorUDT
 
 @udf(VectorUDT())
 def to_vector(xs, ys):
-  return Vectors.sparse(config['monte-carlo']['runs'], zip(xs, ys))
+  v = Vectors.sparse(config['monte-carlo']['runs'], zip(xs, ys)).toArray()
+  return Vectors.dense(v)
 
 # COMMAND ----------
 
@@ -178,7 +160,3 @@ _ = (
 # COMMAND ----------
 
 _ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['database']['tables']['mc_trials']))
-
-# COMMAND ----------
-
-

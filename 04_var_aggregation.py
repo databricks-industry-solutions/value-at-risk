@@ -9,8 +9,7 @@
 
 # COMMAND ----------
 
-from utils.var_utils import weighted_returns
-
+from utils.var_udf import weighted_returns
 trials_df = spark.read.table(config['database']['tables']['mc_trials'])
 simulation_df = (
   trials_df
@@ -43,7 +42,7 @@ point_in_time_vector = (
 
 # COMMAND ----------
 
-from utils.var_utils import plot_var
+from utils.var_viz import plot_var
 plot_var(point_in_time_vector, 99)
 
 # COMMAND ----------
@@ -54,13 +53,13 @@ plot_var(point_in_time_vector, 99)
 
 # COMMAND ----------
 
-from utils.var_utils import var
+from utils.var_udf import get_var_udf
 
 risk_exposure = (
   simulation_df
     .groupBy('date')
     .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
-    .withColumn('var_99', var(F.col('returns'), F.lit(99)))
+    .withColumn('var_99', get_var_udf(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
     .toPandas()
@@ -88,7 +87,7 @@ risk_exposure_country = (
   simulation_df
     .groupBy('date', 'country')
     .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
-    .withColumn('var_99', var(F.col('returns'), F.lit(99)))
+    .withColumn('var_99', get_var_udf(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
     .toPandas()
@@ -117,7 +116,7 @@ risk_exposure_industry = (
     .filter(F.col('country') == 'PERU')
     .groupBy('date', 'industry')
     .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
-    .withColumn('var_99', var(F.col('returns'), F.lit(99)))
+    .withColumn('var_99', get_var_udf(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
     .toPandas()

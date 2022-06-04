@@ -18,10 +18,6 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/configure_notebook
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## VAR 101
 # MAGIC 
@@ -38,7 +34,6 @@
 
 # time horizon
 days = 300
-dt = 1/float(days)
 
 # volatility
 sigma = 0.04 
@@ -49,29 +44,14 @@ mu = 0.05
 # initial starting price
 start_price = 10
 
-# number of simulations
-runs_gr = 500
-runs_mc = 10000
-
 # COMMAND ----------
 
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy import stats
-
-def generate_prices(start_price):
-    shock = np.zeros(days)
-    price = np.zeros(days)
-    price[0] = start_price
-    for i in range(1, days):
-        shock[i] = np.random.normal(loc=mu * dt, scale=sigma * np.sqrt(dt))
-        price[i] = max(0, price[i - 1] + shock[i] * price[i - 1])
-    return price
+from utils.var_utils import generate_prices
 
 plt.figure(figsize=(16,6))
-for i in range(1, runs_gr):
-    plt.plot(generate_prices(start_price))
+for i in range(1, 500):
+    plt.plot(generate_prices(start_price, mu, sigma, days))
 
 plt.title('Simulated price')
 plt.xlabel("Time")
@@ -80,14 +60,22 @@ plt.show()
 
 # COMMAND ----------
 
-simulations = np.zeros(runs_mc)
-for i in range(0, runs_mc):
-    simulations[i] = generate_prices(start_price)[days - 1]
+from utils.var_viz import plot_var
+simulations = [generate_prices(start_price, mu, sigma, days)[-1] for i in range(10000)]
+plot_var(simulations, 99)
 
 # COMMAND ----------
 
-from utils.var_utils import plot_var
-plot_var(simulations, 95)
+# MAGIC %md
+# MAGIC Expected shortfall is measure that produces better incentives for traders than VAR. This is also sometimes referred to as conditional VAR, or tail loss. Where VAR asks the question 'how bad can things get?', expected shortfall asks 'if things do get bad, what is our expected loss?'. 
+
+# COMMAND ----------
+
+from utils.var_utils import get_var
+from utils.var_utils import get_shortfall
+
+print('Var99: {}'.format(round(get_var(simulations, 99), 2)))
+print('Shortfall: {}'.format(round(get_shortfall(simulations, 99), 2)))
 
 # COMMAND ----------
 

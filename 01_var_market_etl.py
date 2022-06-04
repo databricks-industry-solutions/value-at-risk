@@ -9,6 +9,11 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC For the purpose of this exercise, we create a equal weighted portfolio available in our config folder. Once we get the foundations ready, We will be able to adjust weights to minimize our risk exposure accordingly.
+
+# COMMAND ----------
+
 display(portfolio_df)
 
 # COMMAND ----------
@@ -20,14 +25,14 @@ display(portfolio_df)
 # COMMAND ----------
 
 import datetime as dt
-startdate = dt.datetime.strptime(config['yfinance']['mindate'], "%Y-%m-%d").date()
-enddate = dt.datetime.strptime(config['yfinance']['maxdate'], "%Y-%m-%d").date()
+y_min_date = dt.datetime.strptime(config['yfinance']['mindate'], "%Y-%m-%d").date()
+y_max_date = dt.datetime.strptime(config['yfinance']['maxdate'], "%Y-%m-%d").date()
 
 # COMMAND ----------
 
 from pyspark.sql.types import *
 from pyspark.sql.functions import pandas_udf, PandasUDFType
-import yfinance as yf
+from utils.var_utils import download_market_data
 
 schema = StructType(
   [
@@ -42,31 +47,23 @@ schema = StructType(
 )
 
 @pandas_udf(schema, PandasUDFType.GROUPED_MAP)
-def fetch_tick(group, pdf):
+def download_market_data_udf(group, pdf):
   tick = group[0]
-  msft = yf.Ticker(tick)
-  raw = msft.history(start=startdate, end=enddate)[['Open', 'High', 'Low', 'Close', 'Volume']]
-  # fill in missing business days
-  idx = pd.date_range(startdate, enddate, freq='B')
-  # use last observation carried forward for missing value
-  output_df = raw.reindex(idx, method='pad')
-  # Pandas does not keep index (date) when converted into spark dataframe
-  output_df['date'] = output_df.index
-  output_df['ticker'] = tick    
-  output_df = output_df.rename(columns={"Open": "open", "High": "high", "Low": "low", "Volume": "volume", "Close": "close"})
-  return output_df
+  return download_market_data(tick, y_min_date, y_max_date)
 
 # COMMAND ----------
 
 _ = (
   spark.createDataFrame(portfolio_df)
     .groupBy('ticker')
-    .apply(fetch_tick)
+    .apply(download_market_data_udf)
     .write
     .format('delta')
     .mode('overwrite')
     .saveAsTable(config['database']['tables']['stocks'])
 )
+
+# COMMAND ----------
 
 display(spark.read.table(config['database']['tables']['stocks']))
 
@@ -77,7 +74,6 @@ display(spark.read.table(config['database']['tables']['stocks']))
 
 # COMMAND ----------
 
-import plotly.graph_objects as go
 from pyspark.sql import functions as F
 
 stock_df = (
@@ -89,24 +85,10 @@ stock_df = (
     .toPandas()
 )
 
-layout = go.Layout(
-  autosize=False,
-  width=1600,
-  height=800,
-)
+# COMMAND ----------
 
-fig = go.Figure(
-  data=[go.Candlestick(
-    x=stock_df['date'], 
-    open=stock_df['open'], 
-    high=stock_df['high'], 
-    low=stock_df['low'], 
-    close=stock_df['close']
-  )],
-  layout=layout
-)
-
-fig.show()
+from utils.var_viz import plot_candlesticks
+plot_candlesticks(stock_df)
 
 # COMMAND ----------
 
@@ -118,17 +100,12 @@ fig.show()
 
 # Create a pandas dataframe where each column contain close index
 market_indicators_df = pd.DataFrame()
-for tick in market_indicators.keys():    
-    msft = yf.Ticker(tick)
-    raw = msft.history(start=startdate, end=enddate)
-    # fill in missing business days
-    idx = pd.date_range(raw.index.min(), raw.index.max(), freq='B')
-    # use last observation carried forward for missing value
-    pdf = raw.reindex(idx, method='pad')
-    market_indicators_df[market_indicators[tick]] = pdf['Close'].copy()
+for indicator in market_indicators.keys():    
+    close_df = download_market_data(indicator, y_min_date, y_max_date)['close'].copy()
+    market_indicators_df[market_indicators[indicator]] = close_df
         
 # Pandas does not keep index (date) when converted into spark dataframe
-market_indicators_df['date'] = idx
+market_indicators_df['date'] = market_indicators_df.index
 
 # COMMAND ----------
 
@@ -140,6 +117,8 @@ _ = (
     .mode("overwrite")
     .saveAsTable(config['database']['tables']['indicators'])
 )
+
+# COMMAND ----------
 
 display(spark.read.table(config['database']['tables']['indicators']))
 
@@ -181,23 +160,9 @@ def get_market_returns():
 
 # COMMAND ----------
 
-from pyspark.sql.functions import udf
-
-@udf('array<double>')
-def compute_avg(xs):
-  import numpy as np
-  mean = np.array(xs).mean(axis=0)
-  return mean.tolist()
-  
-@udf('array<array<double>>')
-def compute_cov(xs):
-  import pandas as pd
-  return pd.DataFrame(xs).cov().values.tolist()
-
-# COMMAND ----------
-
 from pyspark.sql import Window
 from pyspark.sql import functions as F
+from utils.var_udf import *
 
 days = lambda i: i * 86400 
 volatility_window = Window.orderBy(F.col('date').cast('long')).rangeBetween(-days(config['monte-carlo']['volatility']), 0)

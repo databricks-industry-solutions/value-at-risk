@@ -18,7 +18,7 @@
 
 # COMMAND ----------
 
-from utils.var_utils import weighted_returns
+from utils.var_udf import weighted_returns
 
 trials_df = spark.read.table(config['database']['tables']['mc_trials'])
 simulation_df = (
@@ -35,14 +35,9 @@ simulation_df = (
 
 # COMMAND ----------
 
-import numpy as np
 from pyspark.sql import Window
-from pyspark.sql.functions import udf
 from pyspark.sql import functions as F
-
-@udf("double")
-def compute_return(first, close):
-  return float(np.log(close / first))
+from utils.var_udf import compute_return
 
 # Apply a tumbling 1 day window on each instrument
 window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
@@ -68,13 +63,13 @@ display(inv_returns_df)
 # COMMAND ----------
 
 from pyspark.ml.stat import Summarizer
-from utils.var_utils import var
+from utils.var_udf import get_var_udf
 
 risk_exposure = (
   simulation_df
     .groupBy('date')
     .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
-    .withColumn('var_99', var(F.col('returns'), F.lit(99)))
+    .withColumn('var_99', get_var_udf(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
 )
@@ -119,16 +114,7 @@ compliance_window = Window.orderBy(F.col("date").cast("long")).rangeBetween(-day
 
 # COMMAND ----------
 
-@udf('int')
-def count_breaches(xs, var):
-  breaches = len([x for x in xs if x <= var])
-  if breaches <= 3:
-    return 0
-  elif breaches < 10:
-    return 1
-  else:
-    return 2
-
+from utils.var_udf import count_breaches
 compliance_df = (
   asof_df
     .withColumn('previous_return', F.collect_list('return').over(compliance_window))
