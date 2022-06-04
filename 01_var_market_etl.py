@@ -9,20 +9,7 @@
 
 # COMMAND ----------
 
-import pandas as pd
-portfolio_df = pd.read_csv('config/portfolio.txt')
 display(portfolio_df)
-
-# COMMAND ----------
-
-_ = (
-  spark
-    .createDataFrame(portfolio_df)
-    .write
-    .format('delta')
-    .mode('overwrite')
-    .saveAsTable(config['portfolio_table'])
-)
 
 # COMMAND ----------
 
@@ -33,8 +20,8 @@ _ = (
 # COMMAND ----------
 
 import datetime as dt
-startdate = dt.datetime.strptime(config['yfinance_start'], "%Y-%m-%d").date()
-enddate = dt.datetime.strptime(config['yfinance_stop'], "%Y-%m-%d").date()
+startdate = dt.datetime.strptime(config['yfinance']['mindate'], "%Y-%m-%d").date()
+enddate = dt.datetime.strptime(config['yfinance']['maxdate'], "%Y-%m-%d").date()
 
 # COMMAND ----------
 
@@ -72,18 +59,16 @@ def fetch_tick(group, pdf):
 # COMMAND ----------
 
 _ = (
-  spark
-    .read
-    .table(config['portfolio_table'])
+  spark.createDataFrame(portfolio_df)
     .groupBy('ticker')
     .apply(fetch_tick)
     .write
     .format('delta')
     .mode('overwrite')
-    .saveAsTable(config['stock_table'])
+    .saveAsTable(config['database']['tables']['stocks'])
 )
 
-display(spark.read.table(config['stock_table']))
+display(spark.read.table(config['database']['tables']['stocks']))
 
 # COMMAND ----------
 
@@ -98,7 +83,7 @@ from pyspark.sql import functions as F
 stock_df = (
   spark
     .read
-    .table(config['stock_table'])
+    .table(config['database']['tables']['stocks'])
     .filter(F.col('ticker') == portfolio_df.iloc[0].ticker)
     .orderBy(F.asc('date'))
     .toPandas()
@@ -131,40 +116,32 @@ fig.show()
 
 # COMMAND ----------
 
-factors = {
-  '^GSPC':'SP500',
-  '^NYA':'NYSE',
-  '^XOI':'OIL',
-  '^TNX':'TREASURY',
-  '^DJI':'DOWJONES'
-}
-
 # Create a pandas dataframe where each column contain close index
-factors_df = pd.DataFrame()
-for tick in factors.keys():    
+market_indicators_df = pd.DataFrame()
+for tick in market_indicators.keys():    
     msft = yf.Ticker(tick)
     raw = msft.history(start=startdate, end=enddate)
     # fill in missing business days
     idx = pd.date_range(raw.index.min(), raw.index.max(), freq='B')
     # use last observation carried forward for missing value
     pdf = raw.reindex(idx, method='pad')
-    factors_df[factors[tick]] = pdf['Close'].copy()
+    market_indicators_df[market_indicators[tick]] = pdf['Close'].copy()
         
 # Pandas does not keep index (date) when converted into spark dataframe
-factors_df['date'] = idx
+market_indicators_df['date'] = idx
 
 # COMMAND ----------
 
 _ = (
   spark
-    .createDataFrame(factors_df)
+    .createDataFrame(market_indicators_df)
     .write
     .format("delta")
     .mode("overwrite")
-    .saveAsTable(config['market_table'])
+    .saveAsTable(config['database']['tables']['indicators'])
 )
 
-display(spark.read.table(config['market_table']))
+display(spark.read.table(config['database']['tables']['indicators']))
 
 # COMMAND ----------
 
@@ -178,7 +155,7 @@ import numpy as np
 
 def get_market_returns():
   
-  f_ret_pdf = spark.table(config['market_table']).orderBy('date').toPandas()
+  f_ret_pdf = spark.table(config['database']['tables']['indicators']).orderBy('date').toPandas()
 
   # add date column as pandas index for sliding window
   f_ret_pdf.index = f_ret_pdf['date']
@@ -194,7 +171,7 @@ def get_market_returns():
   return (
     spark
       .createDataFrame(f_ret_pdf)
-      .select(F.array(config['feature_names']).alias('features'), F.col('date'))
+      .select(F.array(list(market_indicators.values())).alias('features'), F.col('date'))
   )
 
 # COMMAND ----------
@@ -223,7 +200,7 @@ from pyspark.sql import Window
 from pyspark.sql import functions as F
 
 days = lambda i: i * 86400 
-volatility_window = Window.orderBy(F.col('date').cast('long')).rangeBetween(-days(config['past_volatility']), 0)
+volatility_window = Window.orderBy(F.col('date').cast('long')).rangeBetween(-days(config['monte-carlo']['volatility']), 0)
 
 volatility_df = (
   get_market_returns()
@@ -243,7 +220,7 @@ volatility_df = (
 
 # COMMAND ----------
 
-volatility_df.write.format('delta').mode('overwrite').saveAsTable(config['volatility_table'])
+volatility_df.write.format('delta').mode('overwrite').saveAsTable(config['database']['tables']['volatility'])
 
 # COMMAND ----------
 
@@ -252,4 +229,8 @@ volatility_df.write.format('delta').mode('overwrite').saveAsTable(config['volati
 
 # COMMAND ----------
 
-display(spark.read.table(config['volatility_table']))
+display(spark.read.table(config['database']['tables']['volatility']))
+
+# COMMAND ----------
+
+

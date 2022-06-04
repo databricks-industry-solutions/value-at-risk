@@ -10,15 +10,12 @@
 # COMMAND ----------
 
 import datetime
-from datetime import timedelta
-import pandas as pd
-import datetime
+model_date = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
 
-# We will generate monte carlo simulation for every week since we've built our model
-# Alternatively, only select run_date to a given day to run once
-today = datetime.date.today()
-first = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
-run_dates = list(pd.date_range(first, today, freq='w'))
+# COMMAND ----------
+
+import tempfile
+tempDir = tempfile.TemporaryDirectory()
 
 # COMMAND ----------
 
@@ -28,16 +25,11 @@ run_dates = list(pd.date_range(first, today, freq='w'))
 
 # COMMAND ----------
 
-import datetime
-run_date = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
-
-# COMMAND ----------
-
 from pyspark.sql import functions as F
 import pandas as pd
-
-market_df = spark.read.table(config['volatility_table']).filter(F.col('date') < run_date).select('date', 'features')
-market_pd = pd.DataFrame(market_df.toPandas()['features'].to_list(), columns=config['feature_names'])
+import datetime
+market_df = spark.read.table(config['database']['tables']['volatility']).filter(F.col('date') < model_date).select('date', 'features')
+market_pd = pd.DataFrame(market_df.toPandas()['features'].to_list(), columns=list(market_indicators.values()))
 display(market_pd)
 
 # COMMAND ----------
@@ -62,7 +54,7 @@ def get_stock_returns():
   window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
 
   # apply sliding window and take first element
-  stocks_df = spark.table(config['stock_table']) \
+  stocks_df = spark.table(config['database']['tables']['stocks']) \
     .filter(F.col('close').isNotNull()) \
     .withColumn("first", F.first('close').over(window)) \
     .withColumn("return", compute_return('first', 'close')) \
@@ -72,7 +64,8 @@ def get_stock_returns():
 
 # COMMAND ----------
 
-stocks_df = get_stock_returns().filter(F.col('date') < run_date)
+stocks_df = get_stock_returns().filter(F.col('date') < model_date)
+display(stocks_df)
 
 # COMMAND ----------
 
@@ -90,7 +83,7 @@ import matplotlib.pyplot as plt
 f_cor_pdf = market_pd.corr(method='spearman', min_periods=12)
 sns.set(rc={'figure.figsize':(11,8)})
 sns.heatmap(f_cor_pdf, annot=True)
-plt.savefig('{}/factor_correlation.png'.format(temp_directory))
+plt.savefig('{}/factor_correlation.png'.format(tempDir.name))
 plt.show()
 
 # COMMAND ----------
@@ -169,7 +162,7 @@ def train_model(group, pdf):
 
 # the resulting dataframe easily fits in memory and will be saved as our "uber model"
 model_df = features_df.groupBy('ticker').apply(train_model).toPandas()
-model_df.head(10)
+display(model_df.head(10))
 
 # COMMAND ----------
 
@@ -240,7 +233,7 @@ with mlflow.start_run(run_name='value-at-risk') as run:
   )
   
   # log additional artifacts
-  mlflow.log_artifact("{}/factor_correlation.png".format(temp_directory))
+  mlflow.log_artifact("{}/factor_correlation.png".format(tempDir.name))
 
 # COMMAND ----------
 
@@ -272,7 +265,7 @@ ax.get_legend().remove()
 plt.title("Model WSSE for each instrument")
 plt.xticks(rotation=45)
 plt.ylabel("wsse")
-plt.savefig("{}/model_wsse.png".format(temp_directory))
+plt.savefig("{}/model_wsse.png".format(tempDir.name))
 plt.show()
 
 # COMMAND ----------
@@ -284,7 +277,7 @@ plt.show()
 
 with mlflow.start_run(run_id=run_id) as run:
   mlflow.log_metric("wsse", wsse)
-  mlflow.log_artifact("{}/model_wsse.png".format(temp_directory))
+  mlflow.log_artifact("{}/model_wsse.png".format(tempDir.name))
 
 # COMMAND ----------
 
@@ -305,7 +298,7 @@ with mlflow.start_run(run_id=run_id) as run:
 
 client = mlflow.tracking.MlflowClient()
 model_uri = "runs:/{}/model".format(run_id)
-result = mlflow.register_model(model_uri, config['model_name'])
+result = mlflow.register_model(model_uri, config['model']['name'])
 version = result.version
 
 # COMMAND ----------
@@ -316,11 +309,11 @@ version = result.version
 # COMMAND ----------
 
 client = mlflow.tracking.MlflowClient()
-for model in client.search_model_versions("name='{}'".format(config['model_name'])):
+for model in client.search_model_versions("name='{}'".format(config['model']['name'])):
   if model.current_stage == 'Production':
     print("Archiving model version {}".format(model.version))
     client.transition_model_version_stage(
-      name=config['model_name'],
+      name=config['model']['name'],
       version=int(model.version),
       stage="Archived"
     )
@@ -329,7 +322,7 @@ for model in client.search_model_versions("name='{}'".format(config['model_name'
 
 client = mlflow.tracking.MlflowClient()
 client.transition_model_version_stage(
-    name=config['model_name'],
+    name=config['model']['name'],
     version=version,
     stage="Production"
 )
@@ -342,7 +335,7 @@ client.transition_model_version_stage(
 # COMMAND ----------
 
 model_udf = mlflow.pyfunc.spark_udf(
-  model_uri='models:/{}/production'.format(config['model_name']), 
+  model_uri='models:/{}/production'.format(config['model']['name']), 
   result_type='float', 
   spark=spark
 )
@@ -365,7 +358,3 @@ plt.title('Log return of EC')
 plt.ylabel('log return')
 plt.xlabel('date')
 plt.show()
-
-# COMMAND ----------
-
-

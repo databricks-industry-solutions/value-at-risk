@@ -18,6 +18,17 @@
 
 # COMMAND ----------
 
+from utils.var_utils import weighted_returns
+
+trials_df = spark.read.table(config['database']['tables']['mc_trials'])
+simulation_df = (
+  trials_df
+    .join(spark.createDataFrame(portfolio_df), ['ticker'])
+    .withColumn('weighted_returns', weighted_returns('returns', 'weight'))
+)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Get investment returns
 # MAGIC In order to detect possible investments breaches, one would need to overlay existing investments to latest value at risk calculations. We simply compute our investment returns using window partitioning function
@@ -37,12 +48,14 @@ def compute_return(first, close):
 window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
 
 # apply sliding window and take first element
-inv_returns_df = spark.table(config['stock_table']) \
+inv_returns_df = spark.table(config['database']['tables']['stocks']) \
   .filter(F.col('close').isNotNull()) \
+  .join(spark.createDataFrame(portfolio_df), ['ticker']) \
   .withColumn("first", F.first('close').over(window)) \
   .withColumn("return", compute_return('first', 'close')) \
+  .withColumn("weighted_return", F.col('return') * F.col('weight')) \
   .groupBy('date') \
-  .agg(F.sum('return').alias('return'))
+  .agg(F.sum('weighted_return').alias('return'))
   
 display(inv_returns_df)
 
@@ -58,9 +71,9 @@ from pyspark.ml.stat import Summarizer
 from utils.var_utils import var
 
 risk_exposure = (
-  spark.read.table(config['trials_table'])
+  simulation_df
     .groupBy('date')
-    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
     .withColumn('var_99', var(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')

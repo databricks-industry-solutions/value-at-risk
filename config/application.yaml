@@ -1,0 +1,30 @@
+yfinance:
+  # although we appreciate our solution may at some point run incrementally
+  # we ensure we bring enough historical data to run some insights
+  mindate: '2018-05-01'
+  maxdate: '2020-05-01'
+
+model:
+  # name of the pyfunc model that will be registered on MLFlow registry
+  name: 'value_at_risk'
+  # date when we train our model (before yfinance end date)
+  date: '2019-09-01'
+    
+database:
+  # all delta tables will be stored as external managed tables under that database / within that directory
+  name: 'solacc_var'
+  path: '/FileStore/solution_accelerators/var/database'
+  tables:
+    stocks: 'market_data'
+    indicators: 'market_indicators'
+    volatility: 'market_volatility'
+    mc_market: 'monte_carlo_market'
+    mc_trials: 'monte_carlo_trials'
+    
+monte-carlo:
+  # control how many nodes do we have at our disposal
+  executors: 20
+  # how much history do we bring to compute past volatility
+  volatility: 90
+  # how many simulations for each instrument
+  runs: 32000

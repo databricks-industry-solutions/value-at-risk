@@ -15,8 +15,8 @@ import pandas as pd
 import datetime
 
 # We will generate monte carlo simulation for every week since we've built our model
-today = datetime.datetime.strptime(config['yfinance_stop'], '%Y-%m-%d')
-first = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
+today = datetime.datetime.strptime(config['yfinance']['maxdate'], '%Y-%m-%d')
+first = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
 run_dates = pd.date_range(first, today, freq='w')
 
 # COMMAND ----------
@@ -28,7 +28,7 @@ run_dates = pd.date_range(first, today, freq='w')
 # COMMAND ----------
 
 from tempo import *
-market_tsdf = TSDF(spark.read.table(config['volatility_table']), ts_col='date')
+market_tsdf = TSDF(spark.read.table(config['database']['tables']['volatility']), ts_col='date')
 rdates_tsdf = TSDF(spark.createDataFrame(pd.DataFrame(run_dates, columns=['date'])), ts_col='date')
 
 # COMMAND ----------
@@ -57,7 +57,7 @@ import pandas as pd
 import numpy as np
 
 def create_seed_df():
-  runs = config['num_runs']
+  runs = config['monte-carlo']['runs']
   seed_df = pd.DataFrame(list(np.arange(0, runs)), columns = ['trial_id'])
   return spark.createDataFrame(seed_df)
 
@@ -98,11 +98,11 @@ display(market_conditions)
 
 _ = (
   market_conditions
-    .repartition(config['num_executors'], 'date')
+    .repartition(config['monte-carlo']['executors'], 'date')
     .write
     .mode("overwrite")
     .format("delta")
-    .saveAsTable(config['monte_carlo_table'])
+    .saveAsTable(config['database']['tables']['mc_market'])
 )  
 
 # COMMAND ----------
@@ -115,7 +115,7 @@ _ = (
 
 import mlflow
 model_udf = mlflow.pyfunc.spark_udf(
-  model_uri='models:/{}/production'.format(config['model_name']), 
+  model_uri='models:/{}/production'.format(config['model']['name']), 
   result_type='float', 
   spark=spark
 )
@@ -123,8 +123,8 @@ model_udf = mlflow.pyfunc.spark_udf(
 # COMMAND ----------
 
 simulations = (
-  spark.read.table(config['monte_carlo_table'])
-    .join(spark.read.table(config['portfolio_table']).select('ticker'))
+  spark.read.table(config['database']['tables']['mc_market'])
+    .join(spark.createDataFrame(portfolio_df[['ticker']]))
     .withColumn('return', model_udf(F.struct('ticker', 'features')))
     .drop('features')
 )
@@ -142,7 +142,7 @@ from pyspark.ml.linalg import Vectors, VectorUDT
 
 @udf(VectorUDT())
 def to_vector(xs, ys):
-  return Vectors.sparse(config['num_runs'], zip(xs, ys))
+  return Vectors.sparse(config['monte-carlo']['runs'], zip(xs, ys))
 
 # COMMAND ----------
 
@@ -167,7 +167,7 @@ _ = (
     .write
     .mode("overwrite")
     .format("delta")
-    .saveAsTable(config['trials_table'])
+    .saveAsTable(config['database']['tables']['mc_trials'])
 )  
 
 # COMMAND ----------
@@ -177,4 +177,8 @@ _ = (
 
 # COMMAND ----------
 
-_ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['trials_table']))
+_ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['database']['tables']['mc_trials']))
+
+# COMMAND ----------
+
+

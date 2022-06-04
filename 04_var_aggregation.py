@@ -9,9 +9,14 @@
 
 # COMMAND ----------
 
-trials_df = spark.read.table(config['trials_table'])
-portfolio_df = spark.read.table(config['portfolio_table'])
-simulation_df = trials_df.join(portfolio_df, ['ticker'])
+from utils.var_utils import weighted_returns
+
+trials_df = spark.read.table(config['database']['tables']['mc_trials'])
+simulation_df = (
+  trials_df
+    .join(spark.createDataFrame(portfolio_df), ['ticker'])
+    .withColumn('weighted_returns', weighted_returns('returns', 'weight'))
+)
 
 # COMMAND ----------
 
@@ -32,7 +37,7 @@ point_in_time_vector = (
   simulation_df
     .filter(F.col('date') == min_date)
     .groupBy('date')
-    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
     .toPandas().iloc[0].returns.toArray()
 )
 
@@ -54,7 +59,7 @@ from utils.var_utils import var
 risk_exposure = (
   simulation_df
     .groupBy('date')
-    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
     .withColumn('var_99', var(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
@@ -82,7 +87,7 @@ plt.show()
 risk_exposure_country = (
   simulation_df
     .groupBy('date', 'country')
-    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
     .withColumn('var_99', var(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
@@ -111,7 +116,7 @@ risk_exposure_industry = (
   simulation_df
     .filter(F.col('country') == 'PERU')
     .groupBy('date', 'industry')
-    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
     .withColumn('var_99', var(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
@@ -125,3 +130,7 @@ import numpy as np
 risk_contribution_country = pd.crosstab(risk_exposure_industry['date'], risk_exposure_industry['industry'], values=risk_exposure_industry['var_99'], aggfunc=np.sum)
 risk_contribution_country = risk_contribution_country.div(risk_contribution_country.sum(axis=1), axis=0)
 risk_contribution_country.plot.bar(figsize=(20,8), colormap="Pastel1", stacked=True, width=0.9)
+
+# COMMAND ----------
+
+
