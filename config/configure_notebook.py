@@ -40,5 +40,5 @@ with open('config/indicators.json', 'r') as f:
 # COMMAND ----------
 
 import mlflow
-dbutils.fs.mkdirs(config['model']['path'])
-mlflow.set_experiment(config['model']['path'])
+username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().userName().get()
+mlflow.set_experiment('/Users/{}/{}'.format(username, config['model']['name']))
