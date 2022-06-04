@@ -16,6 +16,9 @@ class UtilTest(unittest.TestCase):
         simulations = np.arange(0, 100, 1)
         var = get_var(simulations, 95)
         self.assertEqual(round(var), 5)
+        from pyspark.ml.linalg import Vectors
+        var = get_var(Vectors.dense(simulations), 95)
+        self.assertEqual(round(var), 5)
 
     def test_shortfall(self):
         simulations = np.arange(0, 100, 1)

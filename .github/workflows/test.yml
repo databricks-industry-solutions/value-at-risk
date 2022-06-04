@@ -33,8 +33,7 @@ jobs:
         working-directory: ./
         run: |
           pip install -r requirements.txt
-          pip install pyspark==3.1.2 numpy pandas
-          pip install coverage
+          pip install pyspark==3.1.2 pandas==1.4.2 numpy==1.22.4 coverage
           coverage run -m unittest discover -s tests -p 'tests_*.py'
           coverage xml
           
