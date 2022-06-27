@@ -42,3 +42,9 @@ with open('config/indicators.json', 'r') as f:
 import mlflow
 username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().userName().get()
 mlflow.set_experiment('/Users/{}/{}'.format(username, config['model']['name']))
+
+# COMMAND ----------
+
+def teardown():
+  _ = sql("DROP DATABASE IF EXISTS {} CASCADE".format(config['database']['name']))
+  dbutils.fs.rm(config['database']['path'], True)

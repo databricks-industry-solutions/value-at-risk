@@ -195,7 +195,3 @@ volatility_df.write.format('delta').mode('overwrite').saveAsTable(config['databa
 # COMMAND ----------
 
 display(spark.read.table(config['database']['tables']['volatility']))
-
-# COMMAND ----------
-
-

@@ -155,7 +155,7 @@ _ = (
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Finally, we make it easy to extract specific slices of our data asset by optimizing our table for faster read.
+# MAGIC Finally, we make it easy to extract specific slices of our data asset by optimizing our table for faster read. This is achieved through the `OPTIMIZE` command of delta
 
 # COMMAND ----------
 
