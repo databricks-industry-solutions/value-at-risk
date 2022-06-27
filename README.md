@@ -21,3 +21,4 @@ ___
 |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
 | Yfinance                               | Yahoo finance           | Apache2    | https://github.com/ranaroussi/yfinance              |
 | tempo                                  | Timeseries library      | Databricks | https://github.com/databrickslabs/tempo             |
+| PyYAML                                 | Reading Yaml files      | MIT        | https://github.com/yaml/pyyaml                      |
