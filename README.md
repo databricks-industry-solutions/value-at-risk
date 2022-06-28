@@ -6,6 +6,8 @@
 
 *This solution has two parts. First, it shows how Delta Lake and MLflow can be used for value-at-risk calculations – showing how banks can modernize their risk management practices by back-testing, aggregating and scaling simulations by using a unified approach to data analytics with the Lakehouse. Secondly. the solution uses alternative data to move towards a more holistic, agile and forward looking approach to risk management and investments.*
 
+<img src=https://databricks.com/wp-content/uploads/2021/05/Building-a-Modern-Risk-Management-System-in-Financial-Services-market-risk-solutions.png width=500>
+
 ___
 <antoine.amend@databricks.com>
 
