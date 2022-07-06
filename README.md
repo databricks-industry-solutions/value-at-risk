@@ -11,7 +11,7 @@ ___
 
 ___
 
-<img src='https://github.com/databricks-industry-solutions/value-at-risk/blob/master/images/reference_architecture.png?raw=true' width=800>
+<img src='https://github.com/databricks-industry-solutions/value-at-risk/blob/master/images/reference_architecture.png' width=800>
 
 ___
 
