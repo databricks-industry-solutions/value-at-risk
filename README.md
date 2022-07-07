@@ -1,7 +1,7 @@
 <img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/fs-lakehouse-logo-transparent.png width="600px">
 
 [![DBR](https://img.shields.io/badge/DBR-10.4ML-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/10.4ml.html)
-[![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://cloud.google.com/databricks)
+[![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
 [![POC](https://img.shields.io/badge/POC-10_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 
 *This solution has two parts. First, it shows how Delta Lake and MLflow can be used for value-at-risk calculations – showing how banks can modernize their risk management practices by back-testing, aggregating and scaling simulations by using a unified approach to data analytics with the Lakehouse. Secondly. the solution uses alternative data to move towards a more holistic, agile and forward looking approach to risk management and investments.*
