@@ -14,7 +14,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC <img src='https://github.com/databricks-industry-solutions/value-at-risk/blob/master/images/reference_architecture.png' width=800>
+# MAGIC <img src='https://raw.githubusercontent.com/databricks-industry-solutions/value-at-risk/master/images/reference_architecture.png' width=800>
 
 # COMMAND ----------
 
