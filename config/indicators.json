@@ -1,7 +1,0 @@
-{
-  "^GSPC":"SP500",
-  "^NYA":"NYSE",
-  "^XOI":"OIL",
-  "^TNX":"TREASURY",
-  "^DJI":"DOWJONES"
-}
