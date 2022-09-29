@@ -29,13 +29,6 @@
   },
   {
     "country":"CHILE",
-    "company":"Enersis, S.A.",
-    "ticker":"ENIA",
-    "industry":"Electricity",
-    "weight":0.0344827586
-  },
-  {
-    "country":"CHILE",
     "company":"Enersis Chile SA Sponsored ADR",
     "ticker":"ENIC",
     "industry":"Electricity",
@@ -185,13 +178,6 @@
     "country":"PERU",
     "company":"Fortuna Silver Mines Inc.",
     "ticker":"FSM",
-    "industry":"Mining",
-    "weight":0.0344827586
-  },
-  {
-    "country":"PERU",
-    "company":"Compa\u00f1\u00eda de Minas Buenaventura S.A.",
-    "ticker":"BVN",
     "industry":"Mining",
     "weight":0.0344827586
   },
