@@ -23,7 +23,7 @@ run_dates = pd.date_range(first, today, freq='w')
 
 # MAGIC %md
 # MAGIC ## Market volatility
-# MAGIC As we've pre-computed all statistics at ingest time, we can easily retrieve the most recent statistical distribution of market indicators for each date we want to run monte carlo simulation against. We can access temporal information using asof join of our tempo `library`
+# MAGIC As we've pre-computed all statistics at ingest time, we can easily retrieve the most recent statistical distribution of market indicators for each date we want to run monte carlo simulation against. We can access temporal information using asof join of our [`tempo`](https://databrickslabs.github.io/tempo/) library
 
 # COMMAND ----------
 
@@ -160,3 +160,7 @@ _ = (
 # COMMAND ----------
 
 _ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['database']['tables']['mc_trials']))
+
+# COMMAND ----------
+
+
