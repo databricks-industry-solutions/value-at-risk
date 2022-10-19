@@ -5,22 +5,20 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/configure_notebook
+# MAGIC %run ./config/var_config
 
 # COMMAND ----------
 
 import datetime
-model_date = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
+from datetime import timedelta
+import pandas as pd
+import datetime
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC We create a temp directory where we may store some additional artifacts for our model
-
-# COMMAND ----------
-
-import tempfile
-tempDir = tempfile.TemporaryDirectory()
+# We will generate monte carlo simulation for every week since we've built our model
+# Alternatively, only select run_date to a given day to run once
+today = datetime.date.today()
+first = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
+run_dates = list(pd.date_range(first, today, freq='w'))
 
 # COMMAND ----------
 
@@ -30,11 +28,16 @@ tempDir = tempfile.TemporaryDirectory()
 
 # COMMAND ----------
 
+import datetime
+run_date = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
+
+# COMMAND ----------
+
 from pyspark.sql import functions as F
 import pandas as pd
-import datetime
-market_df = spark.read.table(config['database']['tables']['volatility']).filter(F.col('date') < model_date).select('date', 'features')
-market_pd = pd.DataFrame(market_df.toPandas()['features'].to_list(), columns=list(market_indicators.values()))
+
+market_df = spark.read.table(config['volatility_table']).filter(F.col('date') < run_date).select('date', 'features')
+market_pd = pd.DataFrame(market_df.toPandas()['features'].to_list(), columns=config['feature_names'])
 display(market_pd)
 
 # COMMAND ----------
@@ -44,10 +47,14 @@ display(market_pd)
 
 # COMMAND ----------
 
+import numpy as np
 from pyspark.sql import Window
 from pyspark.sql.functions import udf
 from pyspark.sql import functions as F
-from utils.var_udf import compute_return
+
+@udf("double")
+def compute_return(first, close):
+  return float(np.log(close / first))
 
 def get_stock_returns():
 
@@ -55,7 +62,7 @@ def get_stock_returns():
   window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
 
   # apply sliding window and take first element
-  stocks_df = spark.table(config['database']['tables']['stocks']) \
+  stocks_df = spark.table(config['stock_table']) \
     .filter(F.col('close').isNotNull()) \
     .withColumn("first", F.first('close').over(window)) \
     .withColumn("return", compute_return('first', 'close')) \
@@ -65,8 +72,7 @@ def get_stock_returns():
 
 # COMMAND ----------
 
-stocks_df = get_stock_returns().filter(F.col('date') < model_date)
-display(stocks_df)
+stocks_df = get_stock_returns().filter(F.col('date') < run_date)
 
 # COMMAND ----------
 
@@ -84,7 +90,7 @@ import matplotlib.pyplot as plt
 f_cor_pdf = market_pd.corr(method='spearman', min_periods=12)
 sns.set(rc={'figure.figsize':(11,8)})
 sns.heatmap(f_cor_pdf, annot=True)
-plt.savefig('{}/factor_correlation.png'.format(tempDir.name))
+plt.savefig('{}/factor_correlation.png'.format(temp_directory))
 plt.show()
 
 # COMMAND ----------
@@ -121,23 +127,34 @@ display(features_df)
 
 # COMMAND ----------
 
+# add non linear transformations as simple example on non linear returns
+def non_linear_features(xs):
+  import numpy as np
+  fs = []
+  for x in xs:
+    fs.append(x)
+    fs.append(np.sign(x) * x**2)
+    fs.append(x**3)
+    fs.append(np.sign(x) * np.sqrt(abs(x)))
+  return fs
+
+# COMMAND ----------
+
 import statsmodels.api as sm
 from pyspark.sql.types import *
 from pyspark.sql.functions import pandas_udf, PandasUDFType
-from utils.var_utils import non_linear_features
 
 # use pandas UDF to train multiple model (one for each instrument) in parallel
 # the resulting dataframe will be the linear regression weights for each instrument
-train_model_schema = StructType([
+schema = StructType([
   StructField('ticker', StringType(), True), 
   StructField('weights', ArrayType(FloatType()), True)
 ])
 
 # a model would also be much more complex than the below
-@pandas_udf(train_model_schema, PandasUDFType.GROUPED_MAP)
+@pandas_udf(schema, PandasUDFType.GROUPED_MAP)
 def train_model(group, pdf):
   import pandas as pd
-  import numpy as np
   # build market factor vectors
   # add a constant - the intercept term for each instrument i.
   X = [non_linear_features(row) for row in np.array(pdf['features'])]
@@ -152,7 +169,7 @@ def train_model(group, pdf):
 
 # the resulting dataframe easily fits in memory and will be saved as our "uber model"
 model_df = features_df.groupBy('ticker').apply(train_model).toPandas()
-display(model_df.head(10))
+model_df.head(10)
 
 # COMMAND ----------
 
@@ -166,17 +183,28 @@ from mlflow.pyfunc import PythonModel
 
 class RiskMLFlowModel(PythonModel):
   
+  import numpy as np
+  import pandas as pd
+
   def __init__(self, model_df):
     self.weights = dict(zip(model_df.ticker, model_df.weights))
-
+    
+  def _non_linear_features(self, xs):
+    fs = []
+    for x in xs:
+      fs.append(x)
+      fs.append(np.sign(x) * x**2)
+      fs.append(x**3)
+      fs.append(np.sign(x) * np.sqrt(abs(x)))
+    return fs
+  
   def _predict_record(self, ticker, xs):
-    # Our logic is really simplistic and use simple non linear features with a linear regression
-    # still, models could be packaged as pyfunc regardless of sklearn, complex DL or plain stats objects
-    from utils.var_utils import non_linear_features
-    from utils.var_utils import predict_non_linears
     ps = self.weights[ticker]
-    fs = non_linear_features(xs)
-    return predict_non_linears(ps, fs)
+    fs = self._non_linear_features(xs)
+    s = ps[0]
+    for i, f in enumerate(fs):
+      s = s + ps[i + 1] * f
+    return float(s)
   
   def predict(self, context, model_input):
     predicted = model_input[['ticker','features']].apply(lambda x: self._predict_record(*x), axis=1)
@@ -212,7 +240,7 @@ with mlflow.start_run(run_name='value-at-risk') as run:
   )
   
   # log additional artifacts
-  mlflow.log_artifact("{}/factor_correlation.png".format(tempDir.name))
+  mlflow.log_artifact("{}/factor_correlation.png".format(temp_directory))
 
 # COMMAND ----------
 
@@ -222,9 +250,14 @@ display(prediction_df)
 
 # COMMAND ----------
 
+from pyspark.sql.functions import udf
+
+@udf("float")
+def wsse_udf(p, a):
+  return float((p - a)**2)
+
 # compare expected vs. actual return
 # sum mean square error per instrument
-from utils.var_udf import wsse_udf
 wsse_df = prediction_df \
   .withColumn('wsse', wsse_udf(F.col('predicted'), F.col('return'))) \
   .groupBy('ticker') \
@@ -239,7 +272,7 @@ ax.get_legend().remove()
 plt.title("Model WSSE for each instrument")
 plt.xticks(rotation=45)
 plt.ylabel("wsse")
-plt.savefig("{}/model_wsse.png".format(tempDir.name))
+plt.savefig("{}/model_wsse.png".format(temp_directory))
 plt.show()
 
 # COMMAND ----------
@@ -251,7 +284,7 @@ plt.show()
 
 with mlflow.start_run(run_id=run_id) as run:
   mlflow.log_metric("wsse", wsse)
-  mlflow.log_artifact("{}/model_wsse.png".format(tempDir.name))
+  mlflow.log_artifact("{}/model_wsse.png".format(temp_directory))
 
 # COMMAND ----------
 
@@ -272,7 +305,7 @@ with mlflow.start_run(run_id=run_id) as run:
 
 client = mlflow.tracking.MlflowClient()
 model_uri = "runs:/{}/model".format(run_id)
-result = mlflow.register_model(model_uri, config['model']['name'])
+result = mlflow.register_model(model_uri, config['model_name'])
 version = result.version
 
 # COMMAND ----------
@@ -283,11 +316,11 @@ version = result.version
 # COMMAND ----------
 
 client = mlflow.tracking.MlflowClient()
-for model in client.search_model_versions("name='{}'".format(config['model']['name'])):
+for model in client.search_model_versions("name='{}'".format(config['model_name'])):
   if model.current_stage == 'Production':
     print("Archiving model version {}".format(model.version))
     client.transition_model_version_stage(
-      name=config['model']['name'],
+      name=config['model_name'],
       version=int(model.version),
       stage="Archived"
     )
@@ -296,7 +329,7 @@ for model in client.search_model_versions("name='{}'".format(config['model']['na
 
 client = mlflow.tracking.MlflowClient()
 client.transition_model_version_stage(
-    name=config['model']['name'],
+    name=config['model_name'],
     version=version,
     stage="Production"
 )
@@ -309,14 +342,12 @@ client.transition_model_version_stage(
 # COMMAND ----------
 
 model_udf = mlflow.pyfunc.spark_udf(
-  model_uri='models:/{}/production'.format(config['model']['name']), 
+  model_uri='models:/{}/production'.format(config['model_name']), 
   result_type='float', 
   spark=spark
 )
 
 # COMMAND ----------
-
-import numpy as np
 
 plt.figure(figsize=(25,12))
 
@@ -337,4 +368,4 @@ plt.show()
 
 # COMMAND ----------
 
-tempDir.cleanup()
+

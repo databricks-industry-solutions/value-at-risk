@@ -2,9 +2,8 @@
 # MAGIC %md
 # MAGIC <img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fs-lakehouse-logo.png width="600px">
 # MAGIC 
-# MAGIC [![DBR](https://img.shields.io/badge/DBR-10.4ML-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/10.4ml.html)
-# MAGIC [![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
-# MAGIC [![POC](https://img.shields.io/badge/POC-10_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
+# MAGIC [![DBU](https://img.shields.io/badge/DBU-XL-red)]()
+# MAGIC [![COMPLEXITY](https://img.shields.io/badge/COMPLEXITY-401-red)]()
 # MAGIC 
 # MAGIC *Traditional banks relying on on-premises infrastructure can no longer effectively manage risk. Banks must abandon the computational inefficiencies of legacy technologies and build an agile Modern Risk Management practice capable of rapidly responding to market and economic volatility. Using value-at-risk use case, you will learn how Databricks is helping FSIs modernize their risk management practices, leverage Delta Lake, Apache Spark and MLFlow to adopt a more agile approach to risk management.* 
 # MAGIC 
@@ -13,8 +12,11 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC <img src='https://raw.githubusercontent.com/databricks-industry-solutions/value-at-risk/master/images/reference_architecture.png' width=800>
+# MAGIC %run ./config/var_config
+
+# COMMAND ----------
+
+tear_down()
 
 # COMMAND ----------
 
@@ -34,6 +36,7 @@
 
 # time horizon
 days = 300
+dt = 1/float(days)
 
 # volatility
 sigma = 0.04 
@@ -44,14 +47,29 @@ mu = 0.05
 # initial starting price
 start_price = 10
 
+# number of simulations
+runs_gr = 500
+runs_mc = 10000
+
 # COMMAND ----------
 
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-from utils.var_utils import generate_prices
+from scipy import stats
+
+def generate_prices(start_price):
+    shock = np.zeros(days)
+    price = np.zeros(days)
+    price[0] = start_price
+    for i in range(1, days):
+        shock[i] = np.random.normal(loc=mu * dt, scale=sigma * np.sqrt(dt))
+        price[i] = max(0, price[i - 1] + shock[i] * price[i - 1])
+    return price
 
 plt.figure(figsize=(16,6))
-for i in range(1, 500):
-    plt.plot(generate_prices(start_price, mu, sigma, days))
+for i in range(1, runs_gr):
+    plt.plot(generate_prices(start_price))
 
 plt.title('Simulated price')
 plt.xlabel("Time")
@@ -60,30 +78,25 @@ plt.show()
 
 # COMMAND ----------
 
-from utils.var_viz import plot_var
-simulations = [generate_prices(start_price, mu, sigma, days)[-1] for i in range(10000)]
-plot_var(simulations, 99)
+simulations = np.zeros(runs_mc)
+for i in range(0, runs_mc):
+    simulations[i] = generate_prices(start_price)[days - 1]
+
+# COMMAND ----------
+
+# MAGIC %run ./utils/var_utils
+
+# COMMAND ----------
+
+plot_var(simulations, 95)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Expected shortfall is measure that produces better incentives for traders than VAR. This is also sometimes referred to as conditional VAR, or tail loss. Where VAR asks the question 'how bad can things get?', expected shortfall asks 'if things do get bad, what is our expected loss?'. 
-
-# COMMAND ----------
-
-from utils.var_utils import get_var
-from utils.var_utils import get_shortfall
-
-print('Var99: {}'.format(round(get_var(simulations, 99), 2)))
-print('Shortfall: {}'.format(round(get_shortfall(simulations, 99), 2)))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC &copy; 2022 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License [https://databricks.com/db-license-source].  All included or referenced third party libraries are subject to the licenses set forth below.
+# MAGIC 
+# MAGIC &copy; 2021 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License [https://databricks.com/db-license-source].  All included or referenced third party libraries are subject to the licenses set forth below.
 # MAGIC 
 # MAGIC | library                                | description             | license    | source                                              |
 # MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
 # MAGIC | Yfinance                               | Yahoo finance           | Apache2    | https://github.com/ranaroussi/yfinance              |
 # MAGIC | tempo                                  | Timeseries library      | Databricks | https://github.com/databrickslabs/tempo             |
-# MAGIC | PyYAML                                 | Reading Yaml files      | MIT        | https://github.com/yaml/pyyaml                      |

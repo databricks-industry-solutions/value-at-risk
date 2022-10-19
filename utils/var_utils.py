@@ -1,62 +1,48 @@
-def download_market_data(tick, min_date, max_date):
-    import pandas as pd
-    import yfinance as yf
-    msft = yf.Ticker(tick)
-    raw = msft.history(start=min_date, end=max_date)[['Open', 'High', 'Low', 'Close', 'Volume']]
-    # fill in missing business days
-    idx = pd.date_range(min_date, max_date, freq='B')
-    # use last observation carried forward for missing value
-    output_df = raw.reindex(idx, method='pad')
-    # Pandas does not keep index (date) when converted into spark dataframe
-    output_df['date'] = output_df.index
-    output_df['ticker'] = tick
-    output_df = output_df.rename(
-        columns={"Open": "open", "High": "high", "Low": "low", "Volume": "volume", "Close": "close"})
-    return output_df
+# Databricks notebook source
+def plot_var(simulations, var):
+  
+  import pandas as pd
+  import numpy as np
+  import matplotlib.pyplot as plt
+  from scipy import stats
+  
+  mean = np.mean(simulations)
+  z = stats.norm.ppf(1-var)
+  m1 = simulations.min()
+  m2 = simulations.max()
+  std = simulations.std()
+  q1 = np.percentile(simulations, 100-var)
 
+  x1 = np.arange(np.min(simulations), np.max(simulations), 0.01)
+  y1 = stats.norm.pdf(x1, loc=mean, scale=std)
+  x2 = np.arange(x1.min(),q1, 0.001)
+  y2 = stats.norm.pdf(x2, loc=mean, scale=std)
 
-def generate_prices(start_price, mu, sigma, days):
-    import numpy as np
-    shock = np.zeros(days)
-    price = np.zeros(days)
-    sample_rate = 1 / float(days)
-    price[0] = start_price
-    for i in range(1, days):
-        shock[i] = np.random.normal(loc=mu * sample_rate, scale=sigma * np.sqrt(sample_rate))
-        price[i] = max(0, price[i - 1] + shock[i] * price[i - 1])
-    return price
+  mc_df = pd.DataFrame(data = simulations, columns=['return'])
+  ax = mc_df.hist(column='return', bins=50, density=True, grid=False, figsize=(12,8), color='#86bf91', zorder=2, rwidth=0.9)
+  ax = ax[0]
 
+  for x in ax:
+      x.spines['right'].set_visible(False)
+      x.spines['top'].set_visible(False)
+      x.spines['left'].set_visible(False)
+      x.axvline(x=q1, color='r', linestyle='dashed', linewidth=1)
+      x.fill_between(x2, y2, zorder=3, alpha=0.4)
+      x.plot(x1, y1, zorder=3)
+      x.tick_params(axis="both", which="both", bottom="off", top="off", labelbottom="on", left="off", right="off", labelleft="on")
+      vals = x.get_yticks()
+      for tick in vals:
+          x.axhline(y=tick, linestyle='dashed', alpha=0.4, color='#eeeeee', zorder=1)
 
-def create_seed_df(runs):
-    import pandas as pd
-    import numpy as np
-    return pd.DataFrame(list(np.arange(0, runs)), columns=['trial_id'])
+      x.set_title("VAR{} = {:.3f}".format(var, q1), weight='bold', size=15)
+      x.set_xlabel("Returns", labelpad=20, weight='bold', size=12)
+      x.set_ylabel("Density", labelpad=20, weight='bold', size=12)
 
+# COMMAND ----------
 
-def get_shortfall(simulations, var):
-    import numpy as np
-    var = get_var(simulations, var)
-    return float(np.mean([s for s in simulations if s <= var]))
+from pyspark.sql.functions import udf
 
-
-def get_var(simulations, var):
-    import numpy as np
-    return float(np.percentile(simulations, 100 - var))
-
-
-def non_linear_features(xs):
-    import numpy as np
-    fs = []
-    for x in xs:
-        fs.append(x)
-        fs.append(np.sign(x) * x ** 2)
-        fs.append(x ** 3)
-        fs.append(np.sign(x) * np.sqrt(abs(x)))
-    return fs
-
-
-def predict_non_linears(ps, fs):
-    s = ps[0]
-    for i, f in enumerate(fs):
-        s = s + ps[i + 1] * f
-    return float(s)
+@udf('float')
+def var(trials, var):
+  import numpy as np
+  return float(np.quantile(trials.toArray(), (100 - var) / 100))

@@ -14,18 +14,11 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/configure_notebook
+# MAGIC %run ./config/var_config
 
 # COMMAND ----------
 
-from utils.var_udf import weighted_returns
-
-trials_df = spark.read.table(config['database']['tables']['mc_trials'])
-simulation_df = (
-  trials_df
-    .join(spark.createDataFrame(portfolio_df), ['ticker'])
-    .withColumn('weighted_returns', weighted_returns('returns', 'weight'))
-)
+# MAGIC %run ./utils/var_utils
 
 # COMMAND ----------
 
@@ -35,22 +28,25 @@ simulation_df = (
 
 # COMMAND ----------
 
+import numpy as np
 from pyspark.sql import Window
+from pyspark.sql.functions import udf
 from pyspark.sql import functions as F
-from utils.var_udf import compute_return
+
+@udf("double")
+def compute_return(first, close):
+  return float(np.log(close / first))
 
 # Apply a tumbling 1 day window on each instrument
 window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
 
 # apply sliding window and take first element
-inv_returns_df = spark.table(config['database']['tables']['stocks']) \
+inv_returns_df = spark.table(config['stock_table']) \
   .filter(F.col('close').isNotNull()) \
-  .join(spark.createDataFrame(portfolio_df), ['ticker']) \
   .withColumn("first", F.first('close').over(window)) \
   .withColumn("return", compute_return('first', 'close')) \
-  .withColumn("weighted_return", F.col('return') * F.col('weight')) \
   .groupBy('date') \
-  .agg(F.sum('weighted_return').alias('return'))
+  .agg(F.sum('return').alias('return'))
   
 display(inv_returns_df)
 
@@ -63,13 +59,12 @@ display(inv_returns_df)
 # COMMAND ----------
 
 from pyspark.ml.stat import Summarizer
-from utils.var_udf import get_var_udf
 
 risk_exposure = (
-  simulation_df
+  spark.read.table(config['trials_table'])
     .groupBy('date')
-    .agg(Summarizer.sum(F.col('weighted_returns')).alias('returns'))
-    .withColumn('var_99', get_var_udf(F.col('returns'), F.lit(99)))
+    .agg(Summarizer.sum(F.col('returns')).alias('returns'))
+    .withColumn('var_99', var(F.col('returns'), F.lit(99)))
     .drop('returns')
     .orderBy('date')
 )
@@ -114,7 +109,16 @@ compliance_window = Window.orderBy(F.col("date").cast("long")).rangeBetween(-day
 
 # COMMAND ----------
 
-from utils.var_udf import count_breaches
+@udf('int')
+def count_breaches(xs, var):
+  breaches = len([x for x in xs if x <= var])
+  if breaches <= 3:
+    return 0
+  elif breaches < 10:
+    return 1
+  else:
+    return 2
+
 compliance_df = (
   asof_df
     .withColumn('previous_return', F.collect_list('return').over(compliance_window))

@@ -5,7 +5,11 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/configure_notebook
+# MAGIC %run ./config/var_config
+
+# COMMAND ----------
+
+# MAGIC %run ./utils/var_utils
 
 # COMMAND ----------
 
@@ -15,8 +19,8 @@ import pandas as pd
 import datetime
 
 # We will generate monte carlo simulation for every week since we've built our model
-today = datetime.datetime.strptime(config['yfinance']['maxdate'], '%Y-%m-%d')
-first = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
+today = datetime.datetime.strptime(config['yfinance_stop'], '%Y-%m-%d')
+first = datetime.datetime.strptime(config['model_training_date'], '%Y-%m-%d')
 run_dates = pd.date_range(first, today, freq='w')
 
 # COMMAND ----------
@@ -28,7 +32,7 @@ run_dates = pd.date_range(first, today, freq='w')
 # COMMAND ----------
 
 from tempo import *
-market_tsdf = TSDF(spark.read.table(config['database']['tables']['volatility']), ts_col='date')
+market_tsdf = TSDF(spark.read.table(config['volatility_table']), ts_col='date')
 rdates_tsdf = TSDF(spark.createDataFrame(pd.DataFrame(run_dates, columns=['date'])), ts_col='date')
 
 # COMMAND ----------
@@ -51,17 +55,36 @@ display(volatility_df)
 
 # COMMAND ----------
 
-from utils.var_utils import create_seed_df
-seed_df = create_seed_df(config['monte-carlo']['runs'])
-display(seed_df)
+# create a dataframe of seeds so that each trial will result in a different simulation
+# each executor is responsible for num_instruments * ( total_runs / num_executors ) trials
+import pandas as pd
+import numpy as np
+
+def create_seed_df():
+  runs = config['num_runs']
+  seed_df = pd.DataFrame(list(np.arange(0, runs)), columns = ['trial_id'])
+  return spark.createDataFrame(seed_df)
 
 # COMMAND ----------
 
-from utils.var_udf import simulate_market
+# provided covariance matrix and average of market indicators, we sample from a multivariate distribution
+# we allow a seed to be passed for reproducibility
+# whilst many data scientists may add a seed as np.random.seed(seed), we have to appreciate the distributed nature 
+# of our process and the undesired side effects settings seeds globally
+# instead, use rng = np.random.default_rng(seed)
+from pyspark.sql.functions import udf
+
+@udf('array<float>')
+def simulate_market(vol_avg, vol_cov, seed):
+  import numpy as np
+  rng = np.random.default_rng(seed)
+  return rng.multivariate_normal(vol_avg, vol_cov).tolist()
+
+# COMMAND ----------
 
 market_conditions = (
   volatility_df
-    .join(spark.createDataFrame(seed_df))
+    .join(create_seed_df())
     .withColumn('features', simulate_market('vol_avg', 'vol_cov', 'trial_id'))
     .select('date', 'features', 'trial_id')
 )
@@ -79,11 +102,11 @@ display(market_conditions)
 
 _ = (
   market_conditions
-    .repartition(config['monte-carlo']['executors'], 'date')
+    .repartition(config['num_executors'], 'date')
     .write
     .mode("overwrite")
     .format("delta")
-    .saveAsTable(config['database']['tables']['mc_market'])
+    .saveAsTable(config['monte_carlo_table'])
 )  
 
 # COMMAND ----------
@@ -96,7 +119,7 @@ _ = (
 
 import mlflow
 model_udf = mlflow.pyfunc.spark_udf(
-  model_uri='models:/{}/production'.format(config['model']['name']), 
+  model_uri='models:/{}/production'.format(config['model_name']), 
   result_type='float', 
   spark=spark
 )
@@ -104,8 +127,8 @@ model_udf = mlflow.pyfunc.spark_udf(
 # COMMAND ----------
 
 simulations = (
-  spark.read.table(config['database']['tables']['mc_market'])
-    .join(spark.createDataFrame(portfolio_df[['ticker']]))
+  spark.read.table(config['monte_carlo_table'])
+    .join(spark.read.table(config['portfolio_table']).select('ticker'))
     .withColumn('return', model_udf(F.struct('ticker', 'features')))
     .drop('features')
 )
@@ -123,8 +146,7 @@ from pyspark.ml.linalg import Vectors, VectorUDT
 
 @udf(VectorUDT())
 def to_vector(xs, ys):
-  v = Vectors.sparse(config['monte-carlo']['runs'], zip(xs, ys)).toArray()
-  return Vectors.dense(v)
+  return Vectors.sparse(config['num_runs'], zip(xs, ys))
 
 # COMMAND ----------
 
@@ -149,14 +171,14 @@ _ = (
     .write
     .mode("overwrite")
     .format("delta")
-    .saveAsTable(config['database']['tables']['mc_trials'])
+    .saveAsTable(config['trials_table'])
 )  
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Finally, we make it easy to extract specific slices of our data asset by optimizing our table for faster read. This is achieved through the `OPTIMIZE` command of delta
+# MAGIC Finally, we make it easy to extract specific slices of our data asset by optimizing our table for faster read.
 
 # COMMAND ----------
 
-_ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['database']['tables']['mc_trials']))
+_ = sql('OPTIMIZE {} ZORDER BY (`date`, `ticker`)'.format(config['trials_table']))
