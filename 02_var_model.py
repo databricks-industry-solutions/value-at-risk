@@ -90,7 +90,7 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We join our market indicator data with stock returns to build an input dataset we can machine learn. We'll use `tempo` for this AS-OF join since our timestamps may be differents in real life, with intra day tick data.
+# MAGIC We join our market indicator data with stock returns to build an input dataset we can machine learn. We'll use [`tempo`](https://databrickslabs.github.io/tempo/) for this AS-OF join since our timestamps may be differents in real life, with intra day tick data.
 
 # COMMAND ----------
 
@@ -338,3 +338,7 @@ plt.show()
 # COMMAND ----------
 
 tempDir.cleanup()
+
+# COMMAND ----------
+
+
