@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %md 
+# MAGIC You may find this series of notebooks at https://github.com/databricks-industry-solutions/value-at-risk on the `web-sync` branch. For more information about this solution accelerator, visit https://www.databricks.com/solutions/accelerators/market-risk.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Create portfolio
 # MAGIC In this notebook, we will use `yfinance` to download stock data for 40 equities in an equal weighted hypothetical Latin America portfolio. We show how to use pandas UDFs to better distribute this process efficiently and store all of our output data as a Delta table. 

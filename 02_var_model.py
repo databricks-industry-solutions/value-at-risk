@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %md 
+# MAGIC You may find this series of notebooks at https://github.com/databricks-industry-solutions/value-at-risk on the `web-sync` branch. For more information about this solution accelerator, visit https://www.databricks.com/solutions/accelerators/market-risk.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Model building
 # MAGIC In this notebook, we retrieve last 2 years worth of market indicator data to train a model that could predict our instrument returns. As our portfolio is made of 40 equities, we want to train 40 predictive models in parallel, collecting all weights into a single coefficient matrix for monte carlo simulations. We show how to have a more discipline approach to model development by leveraging **MLFlow** capabilities.

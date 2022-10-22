@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %md 
+# MAGIC You may find this series of notebooks at https://github.com/databricks-industry-solutions/value-at-risk on the `web-sync` branch. For more information about this solution accelerator, visit https://www.databricks.com/solutions/accelerators/market-risk.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # VaR Aggregation
 # MAGIC In this notebook, we demonstrate the versatile nature of our model carlo simulation on **Delta Lake**. Stored in its most granular form, analysts have the flexibility to slice and dice their data to aggregate value-at-risk on demand via aggregated vector functions from **Spark ML**.

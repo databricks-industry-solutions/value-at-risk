@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %md 
+# MAGIC You may find this series of notebooks at https://github.com/databricks-industry-solutions/value-at-risk on the `web-sync` branch. For more information about this solution accelerator, visit https://www.databricks.com/solutions/accelerators/market-risk.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Monte Carlo
 # MAGIC In this notebook, we use our model created in previous stage and run monte carlo simulations in parallel using **Apache Spark**. For each simulated market condition sampled from a multi variate distribution, we will predict our hypothetical instrument returns. By storing all of our data back into **Delta Lake**, we will create a data asset that can be queried on-demand across multiple down stream use cases
