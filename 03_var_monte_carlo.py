@@ -47,7 +47,7 @@ display(volatility_df)
 
 # MAGIC %md
 # MAGIC ## Distribute trials
-# MAGIC By fixing a seed strategy, we ensure that each trial will be independant (no random number will be the same) as well as enforcing full reproducibility should we need to process the same experiment twice
+# MAGIC By fixing a seed strategy, we ensure that each trial will be independent (no random number will be the same) as well as enforcing full reproducibility should we need to process the same experiment twice
 
 # COMMAND ----------
 
@@ -115,7 +115,7 @@ display(simulations)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Although we processed our simulated market conditions as a large table made of very few columns, we may want to create a better data asset by wraping all trials into well defined vectors. This asset will help us manipulate vectors through simple aggregated functions using the `Summarizer` class from `pyspark.ml.stat` (see next notebook)
+# MAGIC Although we processed our simulated market conditions as a large table made of very few columns, we may want to create a better data asset by wrapping all trials into well defined vectors. This asset will help us manipulate vectors through simple aggregated functions using the `Summarizer` class from `pyspark.ml.stat` (see next notebook)
 
 # COMMAND ----------
 
