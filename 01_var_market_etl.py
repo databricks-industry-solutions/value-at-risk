@@ -26,7 +26,6 @@ COLOMBIA,BanColombia S.A.,CIB,Banks
 COLOMBIA,Ecopetrol S.A.,EC,Oil & Gas Producers
 COLOMBIA,Grupo Aval Acciones y Valores S.A,AVAL,Financial Services
 MEXICO,"América Móvil, S.A.B. de C.V.",AMX,Mobile Telecommunications
-MEXICO,América Móvil SAB de CV Sponsored ADR Class A,AMOV,Mobile Telecommunications
 MEXICO,CEMEX S.A.B. de C.V. (CEMEX),CX,Construction & Materials
 MEXICO,"Coca-Cola FEMSA, S.A.B. de C.V.",KOF,Beverages
 MEXICO,"Controladora Vuela Compañía de Aviación, S.A.B. de C.V",VLRS,Travel & Leisure
