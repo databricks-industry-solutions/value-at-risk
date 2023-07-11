@@ -19,7 +19,6 @@ country,company,ticker,industry
 CHILE,Banco de Chile,BCH,Banks
 CHILE,Banco Santander-Chile,BSAC,Banks
 CHILE,Compañía Cervecerías Unidas S.A.,CCU,Beverages
-CHILE,Itaú CorpBanca,ITCB,Banks
 CHILE,Enersis Chile SA Sponsored ADR,ENIC,Electricity
 CHILE,"SQM-Sociedad Química y Minera de Chile, S.A.",SQM,Chemicals
 COLOMBIA,BanColombia S.A.,CIB,Banks
@@ -32,10 +31,8 @@ MEXICO,"Controladora Vuela Compañía de Aviación, S.A.B. de C.V",VLRS,Travel &
 MEXICO,"Fomento Económico Mexicano, S.A.B. de C.V. (FEMSA)",FMX,Beverages
 MEXICO,"Grupo Aeroportuario del Pacífico, S.A.B. de C.V. (GAP)",PAC,Industrial Transportation
 MEXICO,"Grupo Aeroportuario del Sureste, S.A. de C.V. (ASUR)",ASR,Industrial Transportation
-MEXICO,"Grupo Financiero Santander México, S.A.B. de C.V",BSMX,Banks
 MEXICO,"Grupo Simec, S.A. De CV. (ADS)",SIM,Industrial Metals & Mining
 MEXICO,"Grupo Televisa, S.A.",TV,Media
-MEXICO,"Industrias Bachoco, S.A.B. de C.V. (Bachoco)",IBA,Food Producers
 PANAMA,"Banco Latinoamericano de Comercio Exterior, S.A.",BLX,Banks
 PANAMA,"Copa Holdings, S.A.",CPA,Travel & Leisure
 PERU,Cementos Pacasmayo S.A.A.,CPAC,Construction & Materials
