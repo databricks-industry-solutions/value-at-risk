@@ -1,8 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC <img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fs-lakehouse-logo.png width="600px">
+# MAGIC <img src=https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/solacc_logo.png width="600px">
 # MAGIC 
-# MAGIC [![DBR](https://img.shields.io/badge/DBR-10.4ML-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/10.4ml.html)
 # MAGIC [![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://databricks.com/try-databricks)
 # MAGIC [![POC](https://img.shields.io/badge/POC-10_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 # MAGIC 
@@ -29,6 +28,57 @@
 # MAGIC + **Monte Carlo Simulation**: This method involves developing a model for future stock price returns and running multiple hypothetical trials.
 # MAGIC 
 # MAGIC We report in below example a simple Value at risk calculation for a synthetic instrument, given a volatility (i.e. standard deviation of instrument returns) and a time horizon (300 days). **What is the most I could lose in 300 days with a 95% confidence?**
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Modern Unity Catalog Setup
+# MAGIC 
+# MAGIC This modernized version uses Unity Catalog for data governance and modern MLflow for experiment tracking.
+
+# COMMAND ----------
+
+# Unity Catalog setup
+import os
+
+# Get parameters from DAB bundle
+catalog_name = dbutils.widgets.get("catalog_name") if dbutils.widgets.get("catalog_name") else "dev_value_at_risk"
+schema_name = dbutils.widgets.get("schema_name") if dbutils.widgets.get("schema_name") else "risk_management"
+environment = dbutils.widgets.get("environment") if dbutils.widgets.get("environment") else "dev"
+
+# Set Unity Catalog context
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog_name}")
+spark.sql(f"USE CATALOG {catalog_name}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+spark.sql(f"USE SCHEMA {schema_name}")
+
+print(f"✅ Unity Catalog configured: {catalog_name}.{schema_name}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## MLflow 2.8+ Setup
+# MAGIC 
+# MAGIC Modern MLflow configuration for experiment tracking and model management.
+
+# COMMAND ----------
+
+import mlflow
+import mlflow.sklearn
+
+# Set MLflow experiment with Unity Catalog
+experiment_name = f"/Shared/{catalog_name}/{schema_name}/var_experiments"
+mlflow.set_experiment(experiment_name)
+
+# Enable autologging for better experiment tracking
+mlflow.sklearn.autolog()
+
+print(f"✅ MLflow experiment: {experiment_name}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## VaR Configuration Parameters
 
 # COMMAND ----------
 

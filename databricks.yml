@@ -1,0 +1,136 @@
+bundle:
+  name: value-at-risk
+
+variables:
+  catalog_name:
+    description: "Unity Catalog name for the value-at-risk solution"
+    default: "dev_value_at_risk"
+
+  schema_name:
+    description: "Schema name within the catalog"
+    default: "risk_management"
+
+  environment:
+    description: "Deployment environment (dev, staging, prod)"
+    default: "dev"
+
+  warehouse_id:
+    lookup:
+      warehouse: "Shared Unity Catalog Serverless"
+
+  service_principal_name:
+    description: "Service principal for production deployment"
+    default: ""
+
+resources:
+  jobs:
+    value_at_risk_workflow:
+      name: "Value at Risk - Modern Risk Management Pipeline"
+      description: "Modernized VaR calculation pipeline with Unity Catalog, MLflow, and Monte Carlo simulations"
+      
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+      
+      timeout_seconds: 7200
+      max_concurrent_runs: 1
+      
+      tasks:
+        - task_key: "var_context_setup"
+          description: "Setup context and configuration for VaR calculations"
+          timeout_seconds: 900
+          
+          notebook_task:
+            notebook_path: "./00_var_context.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+              environment: ${var.environment}
+        
+        - task_key: "market_data_etl"
+          description: "Extract and transform market data using modern data engineering patterns"
+          timeout_seconds: 1800
+          depends_on:
+            - task_key: "var_context_setup"
+          
+          notebook_task:
+            notebook_path: "./01_var_market_etl.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+        
+        - task_key: "model_training"
+          description: "Train predictive models using MLflow 2.8+ for experiment tracking"
+          timeout_seconds: 2400
+          depends_on:
+            - task_key: "market_data_etl"
+          
+          notebook_task:
+            notebook_path: "./02_var_model.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+        
+        - task_key: "monte_carlo_simulation"
+          description: "Run Monte Carlo simulations with distributed computing"
+          timeout_seconds: 3600
+          depends_on:
+            - task_key: "model_training"
+          
+          notebook_task:
+            notebook_path: "./03_var_monte_carlo.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+        
+        - task_key: "risk_aggregation"
+          description: "Aggregate risk metrics and calculate portfolio VaR"
+          timeout_seconds: 1200
+          depends_on:
+            - task_key: "monte_carlo_simulation"
+          
+          notebook_task:
+            notebook_path: "./04_var_aggregation.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+        
+        - task_key: "compliance_reporting"
+          description: "Generate compliance reports and backtesting results"
+          timeout_seconds: 1200
+          depends_on:
+            - task_key: "risk_aggregation"
+          
+          notebook_task:
+            notebook_path: "./05_var_compliance.py"
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/value-at-risk-dev
+    variables:
+      catalog_name: "dev_value_at_risk"
+      environment: "dev"
+    
+  staging:
+    mode: development
+    workspace:
+      root_path: /Workspace/Shared/value-at-risk-staging
+    variables:
+      catalog_name: "staging_value_at_risk"
+      environment: "staging"
+      
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/value-at-risk-prod
+    variables:
+      catalog_name: "prod_value_at_risk"
+      environment: "prod"
+    run_as:
+      service_principal_name: ${var.service_principal_name}
