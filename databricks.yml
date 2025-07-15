@@ -15,8 +15,9 @@ variables:
     default: "dev"
 
   warehouse_id:
-    lookup:
-      warehouse: "Shared Unity Catalog Serverless"
+    description: "SQL warehouse ID for running queries"
+    # Users must provide this via environment variable or CLI parameter
+    # Find your warehouse ID in: Databricks -> SQL Warehouses -> Copy warehouse ID
 
   service_principal_name:
     description: "Service principal for production deployment"
