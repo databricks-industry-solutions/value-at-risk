@@ -66,14 +66,24 @@ print(f"✅ Unity Catalog configured: {catalog_name}.{schema_name}")
 import mlflow
 import mlflow.sklearn
 
+# Set environment variables for MLflow configuration
+os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+os.environ["MLFLOW_REGISTRY_URI"] = "databricks-uc"
+
+# Set MLflow tracking and registry URIs
+mlflow.set_tracking_uri("databricks")
+mlflow.set_registry_uri("databricks-uc")
+
 # Set MLflow experiment with Unity Catalog
-experiment_name = f"/Shared/{catalog_name}/{schema_name}/var_experiments"
+# Use a simpler path that doesn't require pre-existing directories
+experiment_name = f"/Shared/var_experiments_{catalog_name}_{schema_name}"
 mlflow.set_experiment(experiment_name)
 
 # Enable autologging for better experiment tracking
 mlflow.sklearn.autolog()
 
 print(f"✅ MLflow experiment: {experiment_name}")
+print(f"✅ Using Unity Catalog model registry (databricks-uc)")
 
 # COMMAND ----------
 

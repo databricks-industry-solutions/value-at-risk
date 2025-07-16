@@ -54,6 +54,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               schema_name: ${var.schema_name}
+              environment: ${var.environment}
         
         - task_key: "model_training"
           description: "Train predictive models using MLflow 2.8+ for experiment tracking"
@@ -66,6 +67,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               schema_name: ${var.schema_name}
+              environment: ${var.environment}
         
         - task_key: "monte_carlo_simulation"
           description: "Run Monte Carlo simulations with distributed computing"
@@ -78,6 +80,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               schema_name: ${var.schema_name}
+              environment: ${var.environment}
         
         - task_key: "risk_aggregation"
           description: "Aggregate risk metrics and calculate portfolio VaR"
@@ -90,6 +93,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               schema_name: ${var.schema_name}
+              environment: ${var.environment}
         
         - task_key: "compliance_reporting"
           description: "Generate compliance reports and backtesting results"
@@ -102,6 +106,7 @@ resources:
             base_parameters:
               catalog_name: ${var.catalog_name}
               schema_name: ${var.schema_name}
+              environment: ${var.environment}
 
 targets:
   dev:
