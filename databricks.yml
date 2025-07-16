@@ -14,11 +14,6 @@ variables:
     description: "Deployment environment (dev, staging, prod)"
     default: "dev"
 
-  warehouse_id:
-    description: "SQL warehouse ID for running queries"
-    # Users must provide this via environment variable or CLI parameter
-    # Find your warehouse ID in: Databricks -> SQL Warehouses -> Copy warehouse ID
-
   service_principal_name:
     description: "Service principal for production deployment"
     default: ""
@@ -117,21 +112,3 @@ targets:
     variables:
       catalog_name: "dev_value_at_risk"
       environment: "dev"
-    
-  staging:
-    mode: development
-    workspace:
-      root_path: /Workspace/Shared/value-at-risk-staging
-    variables:
-      catalog_name: "staging_value_at_risk"
-      environment: "staging"
-      
-  prod:
-    mode: production
-    workspace:
-      root_path: /Workspace/Shared/value-at-risk-prod
-    variables:
-      catalog_name: "prod_value_at_risk"
-      environment: "prod"
-    run_as:
-      service_principal_name: ${var.service_principal_name}

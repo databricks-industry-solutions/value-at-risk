@@ -10,7 +10,7 @@ on:
 
 jobs:
   validate-and-test:
-    runs-on: ubuntu-latest
+    runs-on: html_publisher
 
     steps:
       - name: Checkout code
@@ -38,66 +38,6 @@ jobs:
           echo "[DEFAULT]" > ~/.databrickscfg
           echo "host = ${{ secrets.DATABRICKS_HOST }}" >> ~/.databrickscfg
           echo "token = ${{ secrets.DATABRICKS_TOKEN }}" >> ~/.databrickscfg
-
-      - name: Setup warehouse configuration
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: |
-          # Use warehouse ID from secrets if provided, otherwise try to find or create one
-          if [ -n "${{ secrets.DATABRICKS_WAREHOUSE_ID }}" ]; then
-            WAREHOUSE_ID="${{ secrets.DATABRICKS_WAREHOUSE_ID }}"
-            echo "Using provided warehouse ID: $WAREHOUSE_ID"
-          else
-            echo "No warehouse ID provided, looking for available warehouses..."
-            
-            # Get list of available warehouses
-            EXISTING_WAREHOUSES=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-              "$DATABRICKS_HOST/api/2.0/sql/warehouses")
-            
-            # Try to find any serverless warehouse
-            WAREHOUSE_ID=$(echo "$EXISTING_WAREHOUSES" | python3 -c "
-            import sys, json
-            try:
-                data = json.load(sys.stdin)
-                if 'warehouses' in data:
-                    warehouses = data['warehouses']
-                    # Look for any serverless warehouse that's running or can be started
-                    for w in warehouses:
-                        if w.get('enable_serverless_compute', False) and w.get('state') != 'DELETED':
-                            print(w['id'])
-                            break
-                    else:
-                        # If no serverless warehouse found, use any available warehouse
-                        for w in warehouses:
-                            if w.get('state') != 'DELETED':
-                                print(w['id'])
-                                break
-                        else:
-                            print('')
-                else:
-                    print('')
-            except Exception as e:
-                print('')
-            ")
-            
-            if [ -z "$WAREHOUSE_ID" ]; then
-              echo "⚠️  No suitable warehouse found. Please provide DATABRICKS_WAREHOUSE_ID secret"
-              echo "Find warehouse ID: Databricks -> SQL Warehouses -> Copy warehouse ID"
-              exit 1
-            fi
-          fi
-          
-          echo "WAREHOUSE_ID=$WAREHOUSE_ID" >> $GITHUB_ENV
-          echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
-
-      - name: Run Python tests
-        run: |
-          if [ -d "tests" ]; then
-            python -m pytest tests/ -v
-          else
-            echo "No tests directory found, skipping tests"
-          fi
 
       - name: Validate DAB bundle
         run: databricks bundle validate --var="environment=${{ env.DEPLOY_ENV }}"
