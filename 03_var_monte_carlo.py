@@ -1,7 +1,13 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Monte Carlo
-# MAGIC In this notebook, we use our model created in previous stage and run monte carlo simulations in parallel using **Apache Spark**. For each simulated market condition sampled from a multi variate distribution, we will predict our hypothetical instrument returns. By storing all of our data back into **Delta Lake**, we will create a data asset that can be queried on-demand across multiple down stream use cases
+# MAGIC # Modern Monte Carlo Simulation
+# MAGIC 
+# MAGIC This notebook demonstrates enterprise-grade Monte Carlo simulation for financial risk:
+# MAGIC - Uses modern distributed computing with Apache Spark
+# MAGIC - Implements Unity Catalog for data governance
+# MAGIC - Includes comprehensive error handling and logging
+# MAGIC - Leverages MLflow for experiment tracking
+# MAGIC - Stores results in Delta Lake with proper versioning
 
 # COMMAND ----------
 
@@ -9,25 +15,156 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Modern Configuration and Setup
+# MAGIC 
+# MAGIC Enhanced configuration with comprehensive error handling and logging.
+
+# COMMAND ----------
+
 import datetime
 from datetime import timedelta
 import pandas as pd
-import datetime
+import numpy as np
+import logging
+from typing import Dict, List, Tuple, Any, Optional
 
-# We will generate monte carlo simulation for every week since we've built our model
-today = datetime.datetime.strptime(config['yfinance']['maxdate'], '%Y-%m-%d')
-first = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
-run_dates = pd.date_range(first, today, freq='w')
+from pyspark.sql import functions as F
+from pyspark.sql import DataFrame
+from pyspark.sql.types import *
+from pyspark.sql import Window
+
+import mlflow
+import mlflow.sklearn
+from mlflow.tracking import MlflowClient
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Parse dates from modern configuration
+def parse_simulation_dates() -> Tuple[datetime.datetime, datetime.datetime, List[datetime.datetime]]:
+    """Parse simulation date range from configuration with validation"""
+    try:
+        today = datetime.datetime.strptime(config['market_data']['yfinance']['maxdate'], '%Y-%m-%d')
+        model_date = datetime.datetime.strptime(config['mlflow']['model']['training_date'], '%Y-%m-%d')
+        
+        # Generate weekly simulation dates
+        simulation_dates = pd.date_range(model_date, today, freq='W').tolist()
+        
+        logger.info(f"Simulation period: {model_date} to {today}")
+        logger.info(f"Number of simulation dates: {len(simulation_dates)}")
+        
+        return today, model_date, simulation_dates
+        
+    except Exception as e:
+        logger.error(f"Failed to parse simulation dates: {str(e)}")
+        raise
+
+# Parse simulation configuration
+today, model_date, simulation_dates = parse_simulation_dates()
+
+# Load Monte Carlo configuration
+mc_config = config['monte_carlo']['simulation']
+num_simulations = mc_config['runs']
+confidence_levels = mc_config['confidence_levels']
+volatility_window = mc_config['volatility_window']
+
+logger.info(f"Monte Carlo configuration:")
+logger.info(f"  Simulations per run: {num_simulations:,}")
+logger.info(f"  Confidence levels: {confidence_levels}")
+logger.info(f"  Volatility window: {volatility_window} days")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Market volatility
-# MAGIC As we've pre-computed all statistics at ingest time, we can easily retrieve the most recent statistical distribution of market indicators for each date we want to run monte carlo simulation against. We can access temporal information using asof join of our [`tempo`](https://databrickslabs.github.io/tempo/) library
+# MAGIC ## Modern Market Volatility Analysis
+# MAGIC 
+# MAGIC Enhanced volatility calculation with Unity Catalog integration and modern time series patterns.
 
 # COMMAND ----------
 
-from tempo import *
+def calculate_market_volatility(volatility_window: int = 90) -> DataFrame:
+    """
+    Calculate market volatility using modern time series patterns
+    
+    Args:
+        volatility_window: Number of days for volatility calculation
+        
+    Returns:
+        DataFrame with volatility metrics
+    """
+    try:
+        from tempo import TSDF
+        
+        # Load market indicators from Unity Catalog
+        indicators_table = f"{catalog_name}.{schema_name}.{config['unity_catalog']['tables']['market_indicators']}"
+        
+        logger.info(f"Calculating volatility from {indicators_table}")
+        
+        # Create time series DataFrame
+        indicators_df = spark.read.table(indicators_table)
+        
+        # Use tempo library for time series operations
+        ts_df = TSDF(
+            indicators_df,
+            ts_col="date",
+            partition_cols=["ticker"]
+        )
+        
+        # Calculate rolling volatility
+        volatility_df = (
+            ts_df
+            .withColumn("log_return", F.log(F.col("close") / F.lag("close", 1).over(
+                Window.partitionBy("ticker").orderBy("date")
+            )))
+            .withColumn("volatility", F.stddev("log_return").over(
+                Window.partitionBy("ticker").orderBy("date").rowsBetween(-volatility_window, 0)
+            ))
+            .df
+            .filter(F.col("volatility").isNotNull())
+        )
+        
+        # Create feature vectors for each date
+        feature_vectors_df = (
+            volatility_df
+            .groupBy("date")
+            .agg(F.collect_list("volatility").alias("volatility_features"))
+            .withColumn("feature_timestamp", F.current_timestamp())
+        )
+        
+        # Save to Unity Catalog
+        volatility_table = f"{catalog_name}.{schema_name}.{config['unity_catalog']['tables']['market_volatility']}"
+        
+        (feature_vectors_df
+         .write
+         .format("delta")
+         .mode("overwrite")
+         .option("overwriteSchema", "true")
+         .saveAsTable(volatility_table))
+        
+        logger.info(f"Volatility features saved to {volatility_table}")
+        
+        return feature_vectors_df
+        
+    except Exception as e:
+        logger.error(f"Volatility calculation failed: {str(e)}")
+        raise
+
+# Calculate market volatility
+try:
+    volatility_df = calculate_market_volatility(volatility_window)
+    
+    # Display volatility summary
+    display(volatility_df.orderBy(F.desc("date")).limit(10))
+    
+    logger.info("Market volatility calculation completed")
+    
+except Exception as e:
+    logger.error(f"Market volatility processing failed: {str(e)}")
+    raise
+
+# COMMAND ----------
 market_tsdf = TSDF(spark.read.table(config['database']['tables']['volatility']), ts_col='date')
 rdates_tsdf = TSDF(spark.createDataFrame(pd.DataFrame(run_dates, columns=['date'])), ts_col='date')
 

@@ -1,7 +1,12 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Model building
-# MAGIC In this notebook, we retrieve last 2 years worth of market indicator data to train a model that could predict our instrument returns. As our portfolio is made of 40 equities, we want to train 40 predictive models in parallel, collecting all weights into a single coefficient matrix for monte carlo simulations. We show how to have a more discipline approach to model development by leveraging **MLFlow** capabilities.
+# MAGIC # Modern Model Building with MLflow 2.8+
+# MAGIC 
+# MAGIC This notebook demonstrates modern ML engineering practices for financial risk modeling:
+# MAGIC - Uses MLflow 2.8+ for comprehensive experiment tracking
+# MAGIC - Implements Unity Catalog for model governance
+# MAGIC - Includes model validation and monitoring
+# MAGIC - Uses distributed training with modern Spark ML patterns
 
 # COMMAND ----------
 
@@ -9,83 +14,325 @@
 
 # COMMAND ----------
 
-import datetime
-model_date = datetime.datetime.strptime(config['model']['date'], '%Y-%m-%d')
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC We create a temp directory where we may store some additional artifacts for our model
+# MAGIC ## Modern MLflow and Model Configuration
+# MAGIC 
+# MAGIC Set up MLflow 2.8+ with Unity Catalog integration for enterprise-grade model management.
 
 # COMMAND ----------
 
+import datetime
+import logging
 import tempfile
-tempDir = tempfile.TemporaryDirectory()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Compute returns
-# MAGIC In the previous notebook, we already computed daily returns for each of our market indicators. Those will be used as features for our model, trying to predict investment returns for each of our instrument.
-
-# COMMAND ----------
-
-from pyspark.sql import functions as F
 import pandas as pd
-import datetime
-market_df = spark.read.table(config['database']['tables']['volatility']).filter(F.col('date') < model_date).select('date', 'features')
-market_pd = pd.DataFrame(market_df.toPandas()['features'].to_list(), columns=list(market_indicators.values()))
-display(market_pd)
+import numpy as np
+from typing import Dict, List, Tuple, Any, Optional
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Let's compute daily returns of our investments. Given the size of a typical portfolio, we can leverage Window functions on spark to do so.
-
-# COMMAND ----------
-
-from pyspark.sql import Window
-from pyspark.sql.functions import udf
 from pyspark.sql import functions as F
-from utils.var_udf import compute_return
+from pyspark.sql import DataFrame
+from pyspark.sql.types import *
 
-def get_stock_returns():
+import mlflow
+import mlflow.sklearn
+from mlflow.models import infer_signature
+from mlflow.tracking import MlflowClient
 
-  # Apply a tumbling 1 day window on each instrument
-  window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-  # apply sliding window and take first element
-  stocks_df = spark.table(config['database']['tables']['stocks']) \
-    .filter(F.col('close').isNotNull()) \
-    .withColumn("first", F.first('close').over(window)) \
-    .withColumn("return", compute_return('first', 'close')) \
-    .select('date', 'ticker', 'return')
-  
-  return stocks_df
-
-# COMMAND ----------
-
-stocks_df = get_stock_returns().filter(F.col('date') < model_date)
-display(stocks_df)
+# Parse model training date from modern configuration
+model_date = datetime.datetime.strptime(config['mlflow']['model']['training_date'], '%Y-%m-%d')
+logger.info(f"Model training date: {model_date}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Create features
-# MAGIC Risk models are complex and cannot really be expressed simply through the form of notebooks. This solution accelerator does not aim to build best financial model, but rather to walk someone through all processes to do so. The starting point to any good risk model will be to diligently study correlations between all different indicators (limited to 5 here for presentation purpose)
+# MAGIC ## Enhanced Model Artifacts Management
+# MAGIC 
+# MAGIC Modern artifact management with proper cleanup and versioning.
 
 # COMMAND ----------
 
-import seaborn as sns
-import matplotlib.pyplot as plt
+class ModelArtifactManager:
+    """Modern artifact management for ML models"""
+    
+    def __init__(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.artifact_path = self.temp_dir.name
+        logger.info(f"Model artifacts directory: {self.artifact_path}")
+    
+    def get_artifact_path(self, filename: str) -> str:
+        """Get full path for artifact file"""
+        return f"{self.artifact_path}/{filename}"
+    
+    def cleanup(self):
+        """Clean up temporary artifacts"""
+        try:
+            self.temp_dir.cleanup()
+            logger.info("Artifact cleanup completed")
+        except Exception as e:
+            logger.warning(f"Artifact cleanup failed: {e}")
 
-# we simply plot correlation matrix via pandas (market factors fit in memory)
-# we assume market factors are not correlated (NASDAQ and SP500 are, so are OIL and TREASURY BONDS)
-f_cor_pdf = market_pd.corr(method='spearman', min_periods=12)
-sns.set(rc={'figure.figsize':(11,8)})
-sns.heatmap(f_cor_pdf, annot=True)
-plt.savefig('{}/factor_correlation.png'.format(tempDir.name))
-plt.show()
+# Initialize artifact manager
+artifact_manager = ModelArtifactManager()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Modern Market Data Processing
+# MAGIC 
+# MAGIC Enhanced data processing with proper error handling and Unity Catalog integration.
+
+# COMMAND ----------
+
+def load_market_features(training_date: datetime.datetime) -> pd.DataFrame:
+    """
+    Load market features from Unity Catalog with modern patterns
+    
+    Args:
+        training_date: Cutoff date for training data
+        
+    Returns:
+        DataFrame with market features
+    """
+    try:
+        # Load market volatility data from Unity Catalog
+        market_volatility_table = f"{catalog_name}.{schema_name}.{config['unity_catalog']['tables']['market_volatility']}"
+        
+        logger.info(f"Loading market features from {market_volatility_table}")
+        
+        market_df = (
+            spark.read.table(market_volatility_table)
+            .filter(F.col('date') < training_date)
+            .select('date', 'features')
+            .orderBy('date')
+        )
+        
+        if market_df.count() == 0:
+            logger.warning("No market features found for training")
+            return pd.DataFrame()
+        
+        # Convert to pandas for model training
+        market_pd = market_df.toPandas()
+        
+        # Extract features from array column
+        features_list = market_pd['features'].tolist()
+        
+        # Load indicator names from configuration
+        with open('config/indicators.json', 'r') as f:
+            import json
+            indicators_config = json.load(f)
+        
+        # Create feature DataFrame
+        feature_columns = list(indicators_config.values())
+        features_df = pd.DataFrame(features_list, columns=feature_columns)
+        features_df['date'] = market_pd['date']
+        
+        logger.info(f"Loaded {len(features_df)} market feature records")
+        logger.info(f"Features: {feature_columns}")
+        
+        return features_df
+        
+    except Exception as e:
+        logger.error(f"Failed to load market features: {str(e)}")
+        raise
+
+# Load market features with error handling
+try:
+    market_features_df = load_market_features(model_date)
+    
+    if not market_features_df.empty:
+        display(market_features_df.head())
+        
+        # Log feature statistics
+        logger.info(f"Feature statistics:")
+        logger.info(f"Date range: {market_features_df['date'].min()} to {market_features_df['date'].max()}")
+        logger.info(f"Feature columns: {[col for col in market_features_df.columns if col != 'date']}")
+    else:
+        logger.warning("No market features available for training")
+        
+except Exception as e:
+    logger.error(f"Market features loading failed: {str(e)}")
+    raise
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Modern Stock Returns Calculation
+# MAGIC 
+# MAGIC Enhanced returns calculation with proper error handling and Unity Catalog integration.
+
+# COMMAND ----------
+
+def calculate_stock_returns(training_date: datetime.datetime) -> DataFrame:
+    """
+    Calculate stock returns using modern Spark patterns
+    
+    Args:
+        training_date: Cutoff date for training data
+        
+    Returns:
+        DataFrame with stock returns
+    """
+    try:
+        from utils.var_udf import compute_return
+        
+        # Load stock data from Unity Catalog
+        stocks_table = f"{catalog_name}.{schema_name}.{config['unity_catalog']['tables']['market_data']}"
+        
+        logger.info(f"Calculating returns from {stocks_table}")
+        
+        # Apply windowing function for returns calculation
+        window = Window.partitionBy('ticker').orderBy('date').rowsBetween(-1, 0)
+        
+        stocks_df = (
+            spark.read.table(stocks_table)
+            .filter(F.col('close').isNotNull())
+            .filter(F.col('date') < training_date)
+            .withColumn("previous_close", F.lag('close', 1).over(window))
+            .withColumn("return", compute_return('previous_close', 'close'))
+            .filter(F.col('return').isNotNull())  # Remove first day (no previous close)
+            .select('date', 'ticker', 'return', 'close')
+        )
+        
+        returns_count = stocks_df.count()
+        logger.info(f"Calculated {returns_count} return observations")
+        
+        return stocks_df
+        
+    except Exception as e:
+        logger.error(f"Failed to calculate stock returns: {str(e)}")
+        raise
+
+# Calculate stock returns
+try:
+    stocks_returns_df = calculate_stock_returns(model_date)
+    
+    # Display sample returns
+    display(stocks_returns_df.orderBy('date', 'ticker').limit(100))
+    
+    # Log summary statistics
+    returns_stats = stocks_returns_df.select(
+        F.count('return').alias('total_observations'),
+        F.countDistinct('ticker').alias('unique_tickers'),
+        F.min('date').alias('min_date'),
+        F.max('date').alias('max_date'),
+        F.avg('return').alias('avg_return'),
+        F.stddev('return').alias('return_volatility')
+    ).collect()[0]
+    
+    logger.info(f"Returns statistics: {returns_stats}")
+    
+except Exception as e:
+    logger.error(f"Stock returns calculation failed: {str(e)}")
+    raise
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Modern Feature Engineering and Correlation Analysis
+# MAGIC 
+# MAGIC Enhanced feature analysis with modern visualization and MLflow tracking.
+
+# COMMAND ----------
+
+def analyze_feature_correlations(features_df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Analyze feature correlations with modern patterns
+    
+    Args:
+        features_df: DataFrame with market features
+        
+    Returns:
+        Dictionary with correlation analysis results
+    """
+    try:
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        
+        # Calculate correlations
+        feature_cols = [col for col in features_df.columns if col != 'date']
+        correlation_matrix = features_df[feature_cols].corr(method='spearman', min_periods=12)
+        
+        # Create modern visualization
+        plt.figure(figsize=(12, 10))
+        sns.set_style("whitegrid")
+        
+        # Create heatmap with modern styling
+        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+        heatmap = sns.heatmap(
+            correlation_matrix,
+            mask=mask,
+            annot=True,
+            cmap='RdBu_r',
+            center=0,
+            square=True,
+            linewidths=0.5,
+            cbar_kws={"shrink": .8}
+        )
+        
+        plt.title('Market Factor Correlation Matrix', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        # Save to artifacts
+        correlation_plot_path = artifact_manager.get_artifact_path('factor_correlation.png')
+        plt.savefig(correlation_plot_path, dpi=300, bbox_inches='tight')
+        plt.show()
+        
+        # Calculate correlation statistics
+        correlation_stats = {
+            'max_correlation': correlation_matrix.abs().max().max(),
+            'min_correlation': correlation_matrix.abs().min().min(),
+            'avg_correlation': correlation_matrix.abs().mean().mean(),
+            'high_correlation_pairs': []
+        }
+        
+        # Find highly correlated pairs
+        for i in range(len(correlation_matrix.columns)):
+            for j in range(i+1, len(correlation_matrix.columns)):
+                corr_value = correlation_matrix.iloc[i, j]
+                if abs(corr_value) > 0.7:  # High correlation threshold
+                    correlation_stats['high_correlation_pairs'].append({
+                        'feature1': correlation_matrix.columns[i],
+                        'feature2': correlation_matrix.columns[j],
+                        'correlation': corr_value
+                    })
+        
+        logger.info(f"Feature correlation analysis completed")
+        logger.info(f"High correlation pairs: {len(correlation_stats['high_correlation_pairs'])}")
+        
+        return {
+            'correlation_matrix': correlation_matrix,
+            'correlation_stats': correlation_stats,
+            'correlation_plot_path': correlation_plot_path
+        }
+        
+    except Exception as e:
+        logger.error(f"Feature correlation analysis failed: {str(e)}")
+        raise
+
+# Perform correlation analysis
+try:
+    if not market_features_df.empty:
+        correlation_results = analyze_feature_correlations(market_features_df)
+        
+        # Log results to MLflow
+        with mlflow.start_run(run_name="feature_correlation_analysis"):
+            mlflow.log_params(correlation_results['correlation_stats'])
+            mlflow.log_artifact(correlation_results['correlation_plot_path'])
+            
+            # Log correlation matrix as artifact
+            correlation_matrix_path = artifact_manager.get_artifact_path('correlation_matrix.csv')
+            correlation_results['correlation_matrix'].to_csv(correlation_matrix_path)
+            mlflow.log_artifact(correlation_matrix_path)
+            
+            logger.info("Correlation analysis logged to MLflow")
+    else:
+        logger.warning("No market features available for correlation analysis")
+        
+except Exception as e:
+    logger.error(f"Correlation analysis failed: {str(e)}")
 
 # COMMAND ----------
 
