@@ -133,22 +133,22 @@ import mlflow
 import mlflow.sklearn
 
 def setup_mlflow():
-    """Setup MLflow 2.8+ with modern patterns"""
+    """Setup MLflow with Unity Catalog (2024-2025 modern patterns)"""
     try:
+        # Explicitly set tracking and registry URIs based on 2024 documentation
+        mlflow.set_tracking_uri("databricks")
+        mlflow.set_registry_uri("databricks-uc")
+        
         # Set experiment with Unity Catalog integration
+        # Use three-level naming convention: catalog.schema.experiment
         experiment_name = f"/Shared/{catalog_name}/{schema_name}/{config['mlflow']['experiment']['name']}"
         mlflow.set_experiment(experiment_name)
         
-        # Enable autologging
+        # Enable autologging for sklearn models
         mlflow.sklearn.autolog()
         
-        # Set tracking URI to Unity Catalog
-        mlflow.set_tracking_uri("databricks")
-        
-        # Set registry URI to Unity Catalog
-        mlflow.set_registry_uri("databricks-uc")
-        
         logger.info(f"✅ MLflow experiment configured: {experiment_name}")
+        logger.info(f"✅ Using Unity Catalog model registry (databricks-uc)")
         
         return experiment_name
         
